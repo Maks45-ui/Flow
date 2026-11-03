@@ -90,6 +90,7 @@ body[data-page="home"] .topbar-brand { display: none; }
 .home-activity-list li[data-phase="starting"]::before, .home-activity-list li[data-phase="cloning"]::before { background: var(--accent); }
 .home-activity-list time { flex: 0 0 42px; color: var(--text-subtle); font: 10px var(--font-mono); }
 #page-home .home-recent-panel { margin-top: 10px; padding: 13px 15px; border-radius: 12px; background: var(--panel); }
+#page-home .console-panel.glass-surface { margin-top: 10px; border-radius: 12px; }
 .home-recent-panel .panel-heading { margin-bottom: 12px; }
 .home-recent-panel .panel-heading h2 { font-size: 14px; }
 .home-recent-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; min-height: 115px; }

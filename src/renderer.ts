@@ -145,15 +145,12 @@ function setConsoleStatus(label: string, state: "idle" | "running" | "done" | "e
   consoleStatus.textContent = label;
   consoleStatus.dataset.state = state;
   consoleToggle.dataset.state = state;
-  consoleToggle.title = state === "running" ? `${label} — открыть логи` : "Открыть логи";
+  consoleToggle.title = state === "running" ? `${label} — перейти к логам` : "Перейти к логам на главной";
 }
 
-function setConsoleVisible(visible: boolean): void {
-  consolePanel.classList.toggle("visible", visible);
-  consolePanel.setAttribute("aria-hidden", String(!visible));
-  consolePanel.inert = !visible;
-  consoleToggle.setAttribute("aria-expanded", String(visible));
-  consoleToggle.title = visible ? "Скрыть логи" : "Открыть логи";
+function openHomeConsole(): void {
+  if (document.body.dataset.page !== "home") showPage("home");
+  consolePanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function setInstalling(value: boolean): void {
@@ -182,7 +179,7 @@ async function waitForWebuiStop(): Promise<void> {
 async function controlWebui(restart: boolean): Promise<void> {
   if (webuiControlBusy || installing || !hasWebuiPackage) return;
   webuiControlBusy = true;
-  setConsoleVisible(true);
+  openHomeConsole();
   updateConsoleControls();
   try {
     const running = (await window.flow.getWebUIStatus()).running;
@@ -277,7 +274,7 @@ async function runPackageMaintenance(item: PackageInfo, action: "repair" | "upda
   if (installing) return;
   installingPackageId = item.id;
   setInstalling(true);
-  setConsoleVisible(true);
+  openHomeConsole();
   setConsoleStatus("Обслуживание пакета", "running");
   queueLog(terminal, `[Пакет] ${item.name}: ${action}`);
   try {
@@ -492,7 +489,7 @@ function renderPackages(state: AppState): void {
     launch.disabled = webuiRunning || stoppingWebui || webuiControlBusy || installing;
     launch.addEventListener("click", async () => {
       launch.disabled = true;
-      setConsoleVisible(true);
+      openHomeConsole();
       setConsoleStatus("Запуск WebUI", "running");
       queueLog(terminal, "[WebUI] Запуск...");
       try {
@@ -1110,7 +1107,6 @@ function onTask(event: TaskEvent): void {
           await downloadManager.restore();
           await refreshState();
           await firstRun.onInstallComplete();
-          if (element<HTMLDialogElement>("first-run-dialog").open) setConsoleVisible(false);
         }).catch((error: unknown) => notify(message(error)));
       }
       else notify(event.message);
@@ -1158,7 +1154,6 @@ document.querySelectorAll<HTMLButtonElement>(".nav-item").forEach((button) => {
   button.addEventListener("click", () => {
     const page = button.dataset.page;
     if (page === "home" || page === "gallery" || page === "models" || page === "manage-models" || page === "settings") {
-      setConsoleVisible(false);
       showPage(page);
     }
   });
@@ -1200,7 +1195,7 @@ menuToggle.addEventListener("click", () => {
   }
 });
 element<HTMLButtonElement>("add-package").addEventListener("click", () => {
-  if (installing) setConsoleVisible(true);
+  if (installing) openHomeConsole();
   else { installDialog.showModal(); void refreshPreflight(); }
 });
 installPackageType.addEventListener("change", () => {
@@ -1240,7 +1235,7 @@ element<HTMLButtonElement>("start-install").addEventListener("click", async () =
   installingPackageId = "forge-neo";
   setInstalling(true);
   installDialog.close();
-  setConsoleVisible(true);
+  openHomeConsole();
   setConsoleStatus("Установка", "running");
   queueLog(terminal, `[Установка] Начало установки ${"Forge Neo"}...`);
   try {
@@ -1253,13 +1248,9 @@ element<HTMLButtonElement>("start-install").addEventListener("click", async () =
     notify(message(error));
   }
 });
-consoleToggle.addEventListener("click", () => setConsoleVisible(!consolePanel.classList.contains("visible")));
+consoleToggle.addEventListener("click", openHomeConsole);
 consoleStop.addEventListener("click", () => void controlWebui(false));
 consoleRestart.addEventListener("click", () => void controlWebui(true));
-element<HTMLButtonElement>("close-terminal").addEventListener("click", () => {
-  setConsoleVisible(false);
-  consoleToggle.focus();
-});
 element<HTMLButtonElement>("clear-terminal").addEventListener("click", () => {
   pendingLogs.delete(terminal);
   terminalHasOutput = true;
@@ -1302,7 +1293,7 @@ installXformersButton.addEventListener("click", async () => {
   if (webuiSettingsDirty) { setWebuiSettingsMessage("Сначала сохраните изменения аргументов запуска.", true); return; }
   installXformersButton.disabled = true;
   webuiSettingsDialog.close();
-  setConsoleVisible(true);
+  openHomeConsole();
   setConsoleStatus("Установка xformers", "running");
   try { await window.flow.installXformers(); }
   catch (error) {
@@ -1486,7 +1477,7 @@ installFlowUpdateButton.addEventListener("click", async () => {
 });
 element<HTMLButtonElement>("open-flow-releases").addEventListener("click", () => void window.flow.openFlowReleases().catch((error: unknown) => notify(message(error))));
 element<HTMLButtonElement>("open-gallery-home").addEventListener("click", () => showPage("gallery"));
-element<HTMLButtonElement>("home-show-logs").addEventListener("click", () => setConsoleVisible(true));
+element<HTMLButtonElement>("home-show-logs").addEventListener("click", openHomeConsole);
 for (const tab of ["parameters", "file"] as const) {
   element<HTMLButtonElement>(`inspector-tab-${tab}`).addEventListener("click", () => {
     for (const name of ["parameters", "file"] as const) {

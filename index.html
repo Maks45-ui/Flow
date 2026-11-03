@@ -45,7 +45,7 @@
         </div>
         <div class="models-topbar-tools"><div class="search-row"><label class="search-field"><span>⌕</span><input id="model-search" type="search" placeholder="Найти модель" autocomplete="off" aria-label="Поиск моделей" /></label><button class="primary-button search-button" id="search-button" type="button">Найти</button></div><div class="model-filters" id="model-filters" role="group" aria-label="Тип модели"><button class="model-filter active" type="button" data-model-type="all" aria-pressed="true">Все</button><button class="model-filter" type="button" data-model-type="checkpoint" aria-pressed="false">Чекпоинты</button><button class="model-filter" type="button" data-model-type="lora" aria-pressed="false">LoRA</button><button class="model-filter" type="button" data-model-type="vae" aria-pressed="false">VAE</button></div></div>
         <div class="gallery-topbar-tools"><label class="gallery-search-wrap"><span aria-hidden="true">⌕</span><input class="gallery-search" id="gallery-search" type="search" placeholder="Поиск по файлам…" aria-label="Поиск по имени файла" /></label><div class="gallery-kind-filters" role="group" aria-label="Тип изображений"><button class="gallery-kind-filter active" type="button" data-gallery-kind="all" aria-pressed="true">Все</button><button class="gallery-kind-filter" type="button" data-gallery-kind="txt2img" aria-pressed="false">txt2img</button><button class="gallery-kind-filter" type="button" data-gallery-kind="img2img" aria-pressed="false">img2img</button><button class="gallery-favorites-toggle" id="gallery-favorites-toggle" type="button" aria-pressed="false">Избранное</button></div><button class="secondary-button" id="select-gallery" type="button">Выбрать</button></div>
-        <div class="topbar-actions"><button class="console-launcher" id="toggle-terminal" type="button" aria-controls="console-panel" aria-expanded="false" title="Открыть логи"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="19" height="16" rx="3"/><path d="m7 9 3 3-3 3m6 0h4"/></svg><span>Логи</span><i class="console-launcher-dot" aria-hidden="true"></i></button><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Выбрать тему оформления" title="Выбрать тему оформления"><span class="theme-toggle-icon" id="theme-toggle-icon" aria-hidden="true">☾</span><span id="theme-toggle-label">Тёмная</span></button></div>
+        <div class="topbar-actions"><button class="console-launcher" id="toggle-terminal" type="button" aria-controls="console-panel" title="Перейти к логам на главной"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="19" height="16" rx="3"/><path d="m7 9 3 3-3 3m6 0h4"/></svg><span>Логи</span><i class="console-launcher-dot" aria-hidden="true"></i></button><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Выбрать тему оформления" title="Выбрать тему оформления"><span class="theme-toggle-icon" id="theme-toggle-icon" aria-hidden="true">☾</span><span id="theme-toggle-label">Тёмная</span></button></div>
       </header>
 
       <div class="content">
@@ -63,6 +63,12 @@
             <div class="studio-events"><div class="panel-heading"><h2>Последние события</h2><button class="text-link" id="home-show-logs" type="button">Показать все</button></div><ol class="home-activity-list" id="home-activity-list" aria-live="polite"><li>События установки и запуска появятся здесь.</li></ol></div>
           </section>
           <section class="panel glass-surface home-recent-panel"><div class="panel-heading"><h2>Недавние генерации</h2><button class="text-link home-link" id="open-gallery-home" type="button">Открыть галерею →</button></div><div class="home-recent-grid" id="home-recent-grid"><p class="home-placeholder">Изображения появятся после генерации.</p></div></section>
+          <section class="panel glass-surface console-panel" id="console-panel" role="region" aria-labelledby="console-title">
+            <div class="console-heading"><div><span class="eyebrow">ПРОЦЕССЫ FLOW</span><h2 id="console-title">Консоль установки и запуска</h2></div><div class="console-actions"><span class="console-status" id="console-status" data-state="idle">Ожидание</span></div></div>
+            <pre class="log-output console-output" id="terminal-log" role="log" aria-live="polite">Логи установки и запуска WebUI появятся здесь.
+</pre>
+            <div class="console-footer"><span>Логи доступны на главном экране, пока вы работаете в других разделах.</span><div class="console-footer-actions"><button class="secondary-button console-clear" id="clear-terminal" type="button">Очистить</button><button class="secondary-button console-cancel" id="cancel-terminal-install" type="button" hidden>Отменить установку</button><button class="secondary-button console-stop" id="stop-terminal-webui" type="button" disabled>Остановить</button><button class="secondary-button console-restart" id="restart-terminal-webui" type="button" disabled>Перезапустить</button></div></div>
+          </section>
           <span id="package-badge" hidden>0 пакетов</span>
         </section>
 
@@ -114,12 +120,6 @@
         </section>
       </div>
       <div class="toast glass-surface" id="toast" role="status" aria-live="polite"></div>
-      <section class="glass-surface console-panel" id="console-panel" role="region" aria-labelledby="console-title" aria-hidden="true" inert>
-        <div class="console-heading"><div><span class="eyebrow">ПРОЦЕССЫ FLOW</span><h2 id="console-title">Консоль установки и запуска</h2></div><div class="console-actions"><span class="console-status" id="console-status" data-state="idle">Ожидание</span><button class="icon-button console-close" id="close-terminal" type="button" aria-label="Скрыть консоль" title="Скрыть консоль">×</button></div></div>
-        <pre class="log-output console-output" id="terminal-log" role="log" aria-live="polite">Логи установки и запуска WebUI появятся здесь.
-</pre>
-        <div class="console-footer"><span>Консоль можно скрыть — процесс продолжится.</span><div class="console-footer-actions"><button class="secondary-button console-clear" id="clear-terminal" type="button">Очистить</button><button class="secondary-button console-cancel" id="cancel-terminal-install" type="button" hidden>Отменить установку</button><button class="secondary-button console-stop" id="stop-terminal-webui" type="button" disabled>Остановить</button><button class="secondary-button console-restart" id="restart-terminal-webui" type="button" disabled>Перезапустить</button></div></div>
-      </section>
     </main>
   </div>
 
