@@ -224,6 +224,29 @@ body[data-page="gallery"] .content { padding: 10px 14px 14px; }
 .inspector-actions #inspector-copy { flex: 1 1 60%; }
 .inspector-actions #inspector-delete { color: var(--danger); }
 
+/* Local model library. Keep file paths visible without letting long names stretch the layout. */
+#page-manage-models .page-heading { margin-bottom: 14px; }
+#page-manage-models .page-heading h1 { font-size: 20px; }
+.managed-models-panel { padding: 14px; border-radius: 11px; background: var(--panel); }
+.managed-models-toolbar { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+.managed-models-toolbar input { flex: 1; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font: 12px var(--font-ui); }
+.managed-models-toolbar input:focus { outline: 1px solid var(--accent); }
+.managed-models-toolbar span { flex: 0 0 auto; color: var(--muted); font: 11px var(--font-mono); }
+.managed-models-toolbar button { min-height: 36px; }
+.managed-models-status { margin: 0; color: var(--muted); font-size: 12px; }
+.managed-models-status:empty { display: none; }
+.managed-models-list { display: flex; flex-direction: column; }
+.managed-model-row { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 11px 3px; border-top: 1px solid var(--line); }
+.managed-model-icon { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-size: 18px; }
+.managed-model-details { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.managed-model-details strong, .managed-model-details small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.managed-model-details strong { color: var(--text); font-size: 12px; font-weight: 660; }
+.managed-model-details span { color: var(--muted); font-size: 11px; }
+.managed-model-details small { color: var(--text-subtle); font: 10px var(--font-mono); }
+.managed-model-remove { flex: 0 0 auto; min-height: 32px; color: var(--danger); }
+.managed-model-remove:hover { border-color: var(--danger); color: var(--danger); }
+.managed-model-delete-dialog { width: min(440px, calc(100% - 36px)); }
+
 @media (max-width: 1390px) {
   .topbar { padding: 0 12px; gap: 6px; }
   .runtime-cell { padding: 0 8px; }
@@ -263,6 +286,8 @@ body[data-page="gallery"] .content { padding: 10px 14px 14px; }
   .sidebar:not(.collapsed):not(.is-animating) .nav-item { justify-content: flex-start; padding: 0 11px; }
 }
 @media (max-width: 700px) {
+  .managed-models-toolbar { flex-wrap: wrap; }
+  .managed-models-toolbar input { flex-basis: 100%; }
   .studio-toolbar { align-items: flex-start; flex-direction: column; }
   .home-recent-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #page-models .model-card.glass-surface { grid-template-columns: 1fr; }

@@ -5,6 +5,7 @@ mod installer;
 mod paths;
 mod maintenance;
 mod managed_tools;
+mod model_manager;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -540,6 +541,8 @@ pub fn run() {
             civitai::cancel_download,
             civitai::list_downloads,
             civitai::delete_download,
+            model_manager::list_installed_models,
+            model_manager::delete_installed_model,
             civitai::get_preview
         ])
         .run(tauri::generate_context!())
@@ -596,3 +599,4 @@ mod onboarding_tests {
         assert!(!settings.onboarding_complete);
     }
 }
+

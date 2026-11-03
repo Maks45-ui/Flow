@@ -29,7 +29,8 @@ mod windows {
         std::thread::spawn(move || {
             let state = match page.as_str() {
                 "home" => "Главная", "gallery" => "Просмотр галереи",
-                "models" => "Загрузка моделей", "settings" => "В настройках", _ => return,
+                "models" => "Загрузка моделей", "manage-models" => "Управление моделями",
+                "settings" => "В настройках", _ => return,
             };
             let started = *STARTED.get_or_init(|| SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs());
             let connection = CONNECTION.get_or_init(|| Mutex::new(None));
@@ -48,3 +49,4 @@ pub(crate) fn set_page(page: &str) {
     #[cfg(windows)] windows::set_page(page);
     #[cfg(not(windows))] let _ = page;
 }
+

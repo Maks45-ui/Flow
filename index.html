@@ -28,6 +28,7 @@
         <button class="nav-item active" data-page="home" title="Главная"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 21v-7h6v7"/></svg></span><span class="nav-label">Главная</span></button>
         <button class="nav-item" data-page="gallery" title="Галерея"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 16-5-5-4 4-2-2-7 7"/></svg></span><span class="nav-label">Галерея</span></button>
         <button class="nav-item" data-page="models" title="Загрузка моделей"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v11m0 0 4-4m-4 4-4-4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/><path d="M7 17h.01"/></svg></span><span class="nav-label">Загрузка моделей</span></button>
+        <button class="nav-item" data-page="manage-models" title="Управление моделями"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1"/><rect x="3" y="10" width="18" height="5" rx="1"/><rect x="3" y="16" width="18" height="5" rx="1"/><path d="M7 6.5h.01M7 12.5h.01M7 18.5h.01"/></svg></span><span class="nav-label">Управление моделями</span></button>
         <button class="nav-item settings-nav" data-page="settings" title="Настройки"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m10.3 3.3.4-1.3h2.6l.4 1.3a2 2 0 0 0 2.6 1.2l1.2-.6 1.8 1.8-.6 1.2a2 2 0 0 0 1.2 2.6l1.3.4v2.6l-1.3.4a2 2 0 0 0-1.2 2.6l.6 1.2-1.8 1.8-1.2-.6a2 2 0 0 0-2.6 1.2l-.4 1.3h-2.6l-.4-1.3a2 2 0 0 0-2.6-1.2l-1.2.6-1.8-1.8.6-1.2a2 2 0 0 0-1.2-2.6L3 12.5V9.9l1.3-.4a2 2 0 0 0 1.2-2.6l-.6-1.2 1.8-1.8 1.2.6a2 2 0 0 0 2.6-1.2Z" transform="translate(0 1) scale(.95)"/><circle cx="12" cy="12" r="3"/></svg></span><span class="nav-label">Настройки</span></button>
       </nav>
       <div class="sidebar-bottom"><span class="online-dot" id="sidebar-status-dot"></span><span class="sidebar-bottom-label" id="sidebar-status-label">WebUI не запущен</span></div>
@@ -78,6 +79,15 @@
           <div class="models-workspace">
             <section class="models-catalog" aria-label="Каталог моделей"><div class="catalog-toolbar"><span>Каталог Civitai</span><label>Сортировка <select id="model-sort" aria-label="Сортировка моделей"><option value="popular">Популярные</option><option value="newest">Новые</option><option value="rated">Высокий рейтинг</option></select></label></div><div class="catalog-status" id="catalog-status">Откройте каталог или введите запрос.</div><div class="model-grid" id="model-grid"></div></section>
             <section class="panel glass-surface downloads-panel" aria-labelledby="downloads-title"><div class="panel-heading"><h2 id="downloads-title">Загрузки</h2><span class="badge" id="download-count">0 файлов</span></div><div class="download-list" id="download-list" aria-live="polite"></div></section>
+          </div>
+        </section>
+
+        <section class="page" id="page-manage-models" aria-labelledby="manage-models-title">
+          <div class="page-heading"><div><span class="eyebrow">ЛОКАЛЬНАЯ БИБЛИОТЕКА</span><h1 id="manage-models-title">Управление моделями</h1><p>Модели из общей библиотеки и активного пакета. Для удаления остановите WebUI и загрузки.</p></div></div>
+          <div class="panel glass-surface managed-models-panel">
+            <div class="managed-models-toolbar"><input id="managed-models-search" type="search" placeholder="Поиск по имени модели" aria-label="Поиск установленных моделей" /><span id="managed-models-count">0 моделей</span><button class="secondary-button" id="refresh-managed-models" type="button">Обновить</button></div>
+            <p id="managed-models-status" class="managed-models-status" role="status" aria-live="polite">Откройте раздел, чтобы загрузить список моделей.</p>
+            <div id="managed-models-list" class="managed-models-list"></div>
           </div>
         </section>
 
@@ -156,6 +166,7 @@
   <dialog class="modal image-modal glass-surface" id="image-dialog"><button class="icon-button image-close" id="close-image" aria-label="Закрыть">×</button><div class="image-preview-layout"><img id="full-image" alt="Пример изображения модели" /><aside class="image-info" id="gallery-image-info" hidden><h3>Параметры изображения</h3><p id="gallery-info-status">Загрузка параметров…</p><dl><dt>Prompt</dt><dd id="gallery-info-prompt">—</dd><dt>Negative prompt</dt><dd id="gallery-info-negative">—</dd><dt>Модель</dt><dd id="gallery-info-model">—</dd><dt>Seed</dt><dd id="gallery-info-seed">—</dd><dt>Шаги</dt><dd id="gallery-info-steps">—</dd><dt>Sampler</dt><dd id="gallery-info-sampler">—</dd></dl><details><summary>Все параметры PNG</summary><pre id="gallery-info-raw">—</pre></details></aside></div></dialog>
   <div class="gallery-context-menu" id="gallery-context-menu" role="menu" hidden><button id="copy-gallery-image" type="button" role="menuitem">Копировать изображение</button><button id="favorite-gallery-image" type="button" role="menuitem">☆ В избранное</button></div>
   <dialog class="modal glass-surface gallery-delete-dialog" id="gallery-delete-dialog" aria-labelledby="gallery-delete-title"><div class="modal-header"><h2 id="gallery-delete-title">Удалить изображения?</h2></div><p id="gallery-delete-message">Выбранные изображения будут удалены без возможности восстановления.</p><div class="modal-actions"><button class="secondary-button" id="cancel-gallery-delete" type="button">Отмена</button><button class="primary-button gallery-delete-confirm" id="confirm-gallery-delete" type="button">Удалить</button></div></dialog>
+  <dialog class="modal glass-surface managed-model-delete-dialog" id="managed-model-delete-dialog" aria-labelledby="managed-model-delete-title"><div class="modal-header"><h2 id="managed-model-delete-title">Удалить модель?</h2></div><p id="managed-model-delete-message">Файл модели будет удалён без возможности восстановления.</p><div class="modal-actions"><button class="secondary-button" id="cancel-managed-model-delete" type="button">Отмена</button><button class="primary-button" id="confirm-managed-model-delete" type="button">Удалить модель</button></div></dialog>
   <script src="/src/renderer.ts" type="module"></script>
 </body>
 </html>

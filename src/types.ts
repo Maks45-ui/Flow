@@ -1,4 +1,4 @@
-export type Page = "home" | "gallery" | "models" | "settings";
+export type Page = "home" | "gallery" | "models" | "manage-models" | "settings";
 export type TaskPhase = "idle" | "checking" | "cloning" | "venv" | "dependencies" | "verifying" | "starting" | "stabilizing" | "ready" | "running" | "stopping" | "log" | "model_error" | "paused" | "done" | "error" | "cancelled";
 
 export interface PackageInfo {
@@ -91,6 +91,14 @@ export interface DownloadedFile {
   sha256: string | null;
 }
 
+export interface InstalledModel {
+  path: string;
+  name: string;
+  modelType: "Checkpoint" | "LoRA" | "VAE";
+  source: string;
+  sizeBytes: number;
+}
+
 export interface ModelSummary {
   id: number;
   name: string;
@@ -160,6 +168,8 @@ export interface FlowAPI {
   cancelDownload(): Promise<void>;
   listDownloads(): Promise<DownloadedFile[]>;
   deleteDownload(modelType: string, fileName: string): Promise<void>;
+  listInstalledModels(): Promise<InstalledModel[]>;
+  deleteInstalledModel(path: string): Promise<void>;
   getPreview(url: string): Promise<string>;
   saveCivitaiToken(token: string): Promise<void>;
   getOnboardingComplete(): Promise<boolean>;

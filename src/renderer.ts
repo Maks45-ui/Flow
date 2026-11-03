@@ -3,6 +3,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { DownloadManager } from "./download-manager";
+import { ModelManager } from "./model-manager";
 import { FirstRunController } from "./onboarding";
 import { ThemeController } from "./theme";
 import type { AppState, CheckReport, GalleryImage, ModelSummary, PackageInfo, Page, TaskEvent } from "./types";
@@ -62,6 +63,13 @@ const downloadManager = new DownloadManager(
   element<HTMLElement>("download-list"),
   element<HTMLElement>("download-count"),
   notify
+);
+const modelManager = new ModelManager(
+  flowApi,
+  element<HTMLElement>("page-manage-models"),
+  element<HTMLDialogElement>("managed-model-delete-dialog"),
+  notify,
+  () => { void downloadManager.restore().catch((error: unknown) => notify(message(error))); }
 );
 new ThemeController(
   element<HTMLElement>("theme-standard"),
@@ -432,6 +440,7 @@ function showPage(page: Page): void {
     hasLoadedCatalog = true;
     void searchModels();
   }
+  if (page === "manage-models") void modelManager.refresh();
   if (page === "gallery") void refreshGallery();
   else hideGalleryContextMenu();
   if (page === "home") void refreshHomeRecent();
@@ -1139,13 +1148,16 @@ function onTask(event: TaskEvent): void {
     return;
   }
   downloadManager.onTask(event);
+  if (event.kind === "download" && event.phase === "done" && document.body.dataset.page === "manage-models") {
+    void modelManager.refresh();
+  }
   firstRun.onTask(event);
 }
 
 document.querySelectorAll<HTMLButtonElement>(".nav-item").forEach((button) => {
   button.addEventListener("click", () => {
     const page = button.dataset.page;
-    if (page === "home" || page === "gallery" || page === "models" || page === "settings") {
+    if (page === "home" || page === "gallery" || page === "models" || page === "manage-models" || page === "settings") {
       setConsoleVisible(false);
       showPage(page);
     }

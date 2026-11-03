@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { AppState, CheckReport, DownloadedFile, FlowAPI, FlowUpdate, GalleryImage, GalleryImageDetails, ModelFile, ModelSummary, PackageInfo, Page, StarterModel, TaskEvent, WebUISettings, WebUIStatus } from "./types";
+import type { AppState, CheckReport, DownloadedFile, FlowAPI, FlowUpdate, GalleryImage, GalleryImageDetails, InstalledModel, ModelFile, ModelSummary, PackageInfo, Page, StarterModel, TaskEvent, WebUISettings, WebUIStatus } from "./types";
 
 // The UI only knows this typed contract. System access stays in Rust.
 export const flowApi: FlowAPI = {
@@ -31,6 +31,8 @@ export const flowApi: FlowAPI = {
   cancelDownload: () => invoke<void>("cancel_download"),
   listDownloads: () => invoke<DownloadedFile[]>("list_downloads"),
   deleteDownload: (modelType: string, fileName: string) => invoke<void>("delete_download", { modelType, fileName }),
+  listInstalledModels: () => invoke<InstalledModel[]>("list_installed_models"),
+  deleteInstalledModel: (path: string) => invoke<void>("delete_installed_model", { path }),
   getPreview: (url: string) => invoke<string>("get_preview", { url }),
   saveCivitaiToken: (token: string) => invoke<void>("save_civitai_token", { token }),
   getOnboardingComplete: () => invoke<boolean>("get_onboarding_complete"),
