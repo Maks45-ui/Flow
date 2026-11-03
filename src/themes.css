@@ -1,8 +1,25 @@
+/* Inter is bundled with Flow so the UI looks the same on every Windows PC. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/InterVariable-Italic.woff2") format("woff2");
+}
+
 /* Flow's semantic tokens. Every theme uses the same spacing and component rules. */
 :root {
-  font-family: Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-family: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   font-synthesis: none;
-  --font-ui: Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-ui: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   --text-primary: var(--text);
   --text-muted: var(--muted);
@@ -176,4 +193,3 @@ html[data-theme="boykisser"] {
   --danger: #ab4557;
   --overlay: rgba(31, 28, 32, .32);
 }
-
