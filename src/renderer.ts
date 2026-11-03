@@ -31,11 +31,8 @@ const xformersStatus = element<HTMLElement>("xformers-status");
 const installXformersButton = element<HTMLButtonElement>("install-xformers");
 const imageDialog = element<HTMLDialogElement>("image-dialog");
 const terminal = element<HTMLElement>("terminal-log");
-const consolePanel = element<HTMLElement>("console-panel");
 const consoleToggle = element<HTMLButtonElement>("toggle-terminal");
-const consoleCancel = element<HTMLButtonElement>("cancel-terminal-install");
-const consoleStop = element<HTMLButtonElement>("stop-terminal-webui");
-const consoleRestart = element<HTMLButtonElement>("restart-terminal-webui");
+const homeCancelInstall = element<HTMLButtonElement>("cancel-home-install");
 const consoleStatus = element<HTMLElement>("console-status");
 const packageList = element<HTMLElement>("package-list");
 const galleryGrid = element<HTMLElement>("gallery-grid");
@@ -150,21 +147,22 @@ function setConsoleStatus(label: string, state: "idle" | "running" | "done" | "e
 
 function openHomeConsole(): void {
   if (document.body.dataset.page !== "home") showPage("home");
-  consolePanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  terminal.focus({ preventScroll: true });
 }
 
 function setInstalling(value: boolean): void {
   installing = value;
   element<HTMLButtonElement>("start-install").disabled = value;
-  consoleCancel.hidden = !value;
-  consoleCancel.disabled = false;
+  homeCancelInstall.hidden = !value;
+  homeCancelInstall.disabled = false;
   updateConsoleControls();
 }
 
 function updateConsoleControls(): void {
   const unavailable = !hasWebuiPackage || installing || stoppingWebui || webuiControlBusy;
-  consoleStop.disabled = unavailable || !webuiRunning;
-  consoleRestart.disabled = unavailable;
+  for (const button of document.querySelectorAll<HTMLButtonElement>(".package-stop, .package-restart")) {
+    button.disabled = unavailable || !webuiRunning || button.dataset.packageId !== activePackageId;
+  }
 }
 
 async function waitForWebuiStop(): Promise<void> {
@@ -518,6 +516,7 @@ function renderPackages(state: AppState): void {
     });
     const stop = make("button", "secondary-button package-stop", "Остановить");
     stop.type = "button";
+    stop.dataset.packageId = item.id;
     stop.disabled = !item.running || item.stopping || stoppingWebui || webuiControlBusy;
     stop.addEventListener("click", () => void controlWebui(false));
     const settings = make("button", "secondary-button", "Настройки");
@@ -551,6 +550,12 @@ function renderPackages(state: AppState): void {
       } catch (error) { notify(message(error)); linkModels.disabled = false; }
     });
     more.append(linkModels);
+    const restart = make("button", "secondary-button package-restart", "Перезапустить");
+    restart.type = "button";
+    restart.dataset.packageId = item.id;
+    restart.disabled = !item.running || item.stopping || installing || webuiControlBusy;
+    restart.addEventListener("click", () => void controlWebui(true));
+    more.append(restart);
     if (item.managed) {
       const check = make("button", "secondary-button", "Проверить");
       check.type = "button";
@@ -1249,8 +1254,6 @@ element<HTMLButtonElement>("start-install").addEventListener("click", async () =
   }
 });
 consoleToggle.addEventListener("click", openHomeConsole);
-consoleStop.addEventListener("click", () => void controlWebui(false));
-consoleRestart.addEventListener("click", () => void controlWebui(true));
 element<HTMLButtonElement>("clear-terminal").addEventListener("click", () => {
   pendingLogs.delete(terminal);
   terminalHasOutput = true;
@@ -1321,11 +1324,11 @@ webuiSaveButton.addEventListener("click", async () => {
     }
   }
 });
-consoleCancel.addEventListener("click", async () => {
+homeCancelInstall.addEventListener("click", async () => {
   if (!installing) return;
-  consoleCancel.disabled = true;
+  homeCancelInstall.disabled = true;
   try { await window.flow.cancelInstall(); }
-  catch (error) { consoleCancel.disabled = false; notify(message(error)); }
+  catch (error) { homeCancelInstall.disabled = false; notify(message(error)); }
 });
 element<HTMLButtonElement>("close-image").addEventListener("click", () => imageDialog.close());
 galleryRefresh.addEventListener("click", () => void refreshGallery());

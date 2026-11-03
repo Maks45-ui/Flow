@@ -52,7 +52,7 @@
         <section class="page active" id="page-home" aria-labelledby="home-title">
           <h1 id="home-title" class="visually-hidden">Главная</h1>
           <section class="panel glass-surface studio-panel" aria-labelledby="studio-title">
-            <div class="studio-toolbar"><h2 id="studio-title">Пакет Stable Diffusion <span class="studio-package-count">(<span id="package-count">0</span>)</span></h2><div><span id="system-status">Готов к работе</span><button class="secondary-button" id="add-package" type="button">＋ Добавить пакет</button></div></div>
+            <div class="studio-toolbar"><h2 id="studio-title">Пакет Stable Diffusion <span class="studio-package-count">(<span id="package-count">0</span>)</span></h2><div><span id="system-status">Готов к работе</span><button class="secondary-button" id="cancel-home-install" type="button" hidden>Отменить установку</button><button class="secondary-button" id="add-package" type="button">＋ Добавить пакет</button></div></div>
             <div id="package-list" class="package-list"></div>
             <div class="studio-metrics" aria-label="Показатели WebUI">
               <div class="studio-metric"><span class="metric-icon" aria-hidden="true">▦</span><div><span>VRAM</span><strong id="home-vram">— / — ГБ</strong><div class="metric-track"><i id="home-vram-fill"></i></div></div></div>
@@ -64,10 +64,9 @@
           </section>
           <section class="panel glass-surface home-recent-panel"><div class="panel-heading"><h2>Недавние генерации</h2><button class="text-link home-link" id="open-gallery-home" type="button">Открыть галерею →</button></div><div class="home-recent-grid" id="home-recent-grid"><p class="home-placeholder">Изображения появятся после генерации.</p></div></section>
           <section class="panel glass-surface console-panel" id="console-panel" role="region" aria-labelledby="console-title">
-            <div class="console-heading"><div><span class="eyebrow">ПРОЦЕССЫ FLOW</span><h2 id="console-title">Консоль установки и запуска</h2></div><div class="console-actions"><span class="console-status" id="console-status" data-state="idle">Ожидание</span></div></div>
-            <pre class="log-output console-output" id="terminal-log" role="log" aria-live="polite">Логи установки и запуска WebUI появятся здесь.
+            <div class="console-heading"><div><span class="eyebrow">ПРОЦЕССЫ FLOW</span><h2 id="console-title">Консоль установки и запуска</h2></div><div class="console-actions"><span class="console-status" id="console-status" data-state="idle">Ожидание</span><button class="text-link" id="clear-terminal" type="button">Очистить</button></div></div>
+            <pre class="log-output console-output" id="terminal-log" role="log" aria-live="polite" tabindex="0">Логи установки и запуска WebUI появятся здесь.
 </pre>
-            <div class="console-footer"><span>Логи доступны на главном экране, пока вы работаете в других разделах.</span><div class="console-footer-actions"><button class="secondary-button console-clear" id="clear-terminal" type="button">Очистить</button><button class="secondary-button console-cancel" id="cancel-terminal-install" type="button" hidden>Отменить установку</button><button class="secondary-button console-stop" id="stop-terminal-webui" type="button" disabled>Остановить</button><button class="secondary-button console-restart" id="restart-terminal-webui" type="button" disabled>Перезапустить</button></div></div>
           </section>
           <span id="package-badge" hidden>0 пакетов</span>
         </section>

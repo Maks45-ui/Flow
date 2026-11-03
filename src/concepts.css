@@ -38,7 +38,9 @@
 
 /* 1 · Studio. Large package hero, four live metrics, activity and six works. */
 body[data-page="home"] .topbar-brand { display: none; }
-#page-home .studio-panel { padding: 16px 18px 12px; border-radius: 12px; background: var(--panel); }
+body[data-page="home"] .content { flex: 1 1 auto; min-height: 0; overflow: hidden; padding-bottom: 16px; }
+#page-home.page.active { display: grid; grid-template-rows: minmax(0, 1.6fr) 150px minmax(0, 1fr); gap: 10px; height: 100%; max-height: 100%; overflow: hidden; }
+#page-home .studio-panel { min-height: 0; padding: 16px 18px 12px; border-radius: 12px; background: var(--panel); overflow-y: auto; }
 .studio-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .studio-toolbar h2 { font-size: 13px; font-weight: 640; }
 .studio-package-count { color: var(--muted); font-size: 11px; }
@@ -89,17 +91,20 @@ body[data-page="home"] .topbar-brand { display: none; }
 .home-activity-list li[data-phase="error"]::before { background: var(--danger); }
 .home-activity-list li[data-phase="starting"]::before, .home-activity-list li[data-phase="cloning"]::before { background: var(--accent); }
 .home-activity-list time { flex: 0 0 42px; color: var(--text-subtle); font: 10px var(--font-mono); }
-#page-home .home-recent-panel { margin-top: 10px; padding: 13px 15px; border-radius: 12px; background: var(--panel); }
-#page-home .console-panel.glass-surface { margin-top: 10px; border-radius: 12px; }
-.home-recent-panel .panel-heading { margin-bottom: 12px; }
+#page-home .home-recent-panel { display: flex; flex-direction: column; min-height: 0; margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--panel); overflow: hidden; }
+#page-home .console-panel.glass-surface { min-height: 0; margin: 0; border-radius: 12px; overflow: hidden; }
+#page-home .console-panel .console-heading { flex: 0 0 auto; margin-bottom: 8px; }
+#page-home .console-panel .console-output { flex: 1 1 auto; min-height: 0; height: auto; max-height: none; overflow: auto; }
+.home-recent-panel .panel-heading { margin-bottom: 7px; }
 .home-recent-panel .panel-heading h2 { font-size: 14px; }
-.home-recent-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; min-height: 115px; }
+#page-home .home-recent-grid { display: flex; flex: 1; gap: 8px; min-height: 0; overflow-x: auto; overflow-y: hidden; }
 .home-recent-image { min-width: 0; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); text-align: left; cursor: pointer; }
-.home-recent-image img { display: block; width: 100%; height: 90px; border-radius: 8px; object-fit: cover; transition: filter .18s ease-out; }
+#page-home .home-recent-image { flex: 0 0 clamp(96px, 16%, 150px); }
+.home-recent-image img { display: block; width: 100%; height: 70px; border-radius: 8px; object-fit: cover; transition: filter .18s ease-out; }
 .home-recent-image:hover img { filter: brightness(1.12); }
 .home-recent-caption { display: flex; flex-direction: column; gap: 2px; padding: 5px 2px 0; font: 10px var(--font-mono); }
 .home-recent-caption small { color: var(--text-subtle); font-size: 10px; }
-.home-placeholder { grid-column: 1 / -1; align-self: center; color: var(--muted); text-align: center; font-size: 12px; }
+.home-placeholder { flex: 1; align-self: center; color: var(--muted); text-align: center; font-size: 12px; }
 
 /* 2 · Library. The reference is light; semantic tokens recolor it in every theme. */
 body[data-page="models"] .topbar-brand, body[data-page="models"] .runtime-cell:not(.runtime-package) { display: none; }
@@ -263,7 +268,6 @@ body[data-page="gallery"] .content { padding: 10px 14px 14px; }
   #page-home .studio-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #page-home .package-card.glass-surface { grid-template-columns: 88px minmax(0, 1fr); }
   #page-home .package-actions { grid-column: 1 / -1; grid-row: auto; width: 100%; }
-  .home-recent-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .models-workspace { grid-template-columns: minmax(0, 1fr) 230px; }
   .models-topbar-tools .search-button { display: none; }
   body[data-page="models"] .runtime-status { display: none; }
@@ -290,12 +294,16 @@ body[data-page="gallery"] .content { padding: 10px 14px 14px; }
   .managed-models-toolbar { flex-wrap: wrap; }
   .managed-models-toolbar input { flex-basis: 100%; }
   .studio-toolbar { align-items: flex-start; flex-direction: column; }
-  .home-recent-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #page-models .model-card.glass-surface { grid-template-columns: 1fr; }
   #page-models .model-gallery { height: 120px; min-height: 0; }
   #page-models .model-image { flex-basis: 92px; height: 102px; }
   .gallery-inspector { display: block; }
   .models-topbar-tools .model-filters { display: none; }
+}
+@media (max-height: 680px) {
+  #page-home.page.active { grid-template-rows: minmax(0, 1.6fr) 115px minmax(0, 1fr); }
+  #page-home .home-recent-image img { height: 46px; }
+  #page-home .home-recent-caption small { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .metric-track i, .model-filter, .home-recent-image img { transition: none; }
