@@ -10,9 +10,6 @@
 - **Git:** [Git — Install for Windows](https://git-scm.com/download/win)
 - **Python:** [Python Release Python 3.10.0 | Python.org](https://www.python.org/downloads/release/python-3100/) *(при установке обязательно поставьте галочку «Add Python to PATH»)*
 
-<img width="1914" height="1007" alt="image" src="https://github.com/user-attachments/assets/f2834395-397a-428f-b7fa-32a52db34a39" />
-
-
 ## ✨ Возможности
 - 📦 Установка и запуск WebUI, включая Forge Neo.
 - 🧠 Поиск и скачивание моделей с Civitai, а также управление установленными моделями.
@@ -20,6 +17,9 @@
 - ⚙️ Настройки запуска WebUI, включая параметры для экономии видеопамяти.
 - 📋 Встроенная консоль с логами установки и работы WebUI.
 - 🎨 Темы оформления: светлая, тёмная и дополнительные варианты.
+
+<img width="1914" height="1007" alt="image" src="https://github.com/user-attachments/assets/8f346b35-8587-4b1b-9c50-bc22d6ff9da2" />
+
 
 ## 💙 Почему Flow?
 **Flow** помогает выполнять повседневные действия в одном месте: запускать WebUI, находить модели, следить за процессами и просматривать готовые изображения. Меньше ручной работы с папками и командами — больше времени для творчества.
