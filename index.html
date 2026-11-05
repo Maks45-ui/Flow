@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/src/professional.css" />
   <link rel="stylesheet" href="/src/concepts.css" />
   <link rel="stylesheet" href="/src/boykisser.css" />
+  <link rel="stylesheet" href="/src/error-help.css" />
 </head>
 <body>
   <div class="splash-screen" id="splash-screen" role="status" aria-label="Запуск Flow">
@@ -65,7 +66,7 @@
           </section>
           <section class="panel glass-surface home-recent-panel"><div class="panel-heading"><h2>Недавние генерации</h2><button class="text-link home-link" id="open-gallery-home" type="button">Открыть галерею →</button></div><div class="home-recent-grid" id="home-recent-grid"><p class="home-placeholder">Изображения появятся после генерации.</p></div></section>
           <section class="panel glass-surface console-panel" id="console-panel" role="region" aria-labelledby="console-title">
-            <div class="console-heading"><div><span class="eyebrow">ПРОЦЕССЫ FLOW</span><h2 id="console-title">Консоль установки и запуска</h2></div><div class="console-actions"><span class="console-status" id="console-status" data-state="idle">Ожидание</span><button class="text-link" id="clear-terminal" type="button">Очистить</button></div></div>
+            <div class="console-heading"><div><span class="eyebrow">ПРОЦЕССЫ FLOW</span><h2 id="console-title">Консоль установки и запуска</h2></div><div class="console-actions"><span class="console-status" id="console-status" data-state="idle">Ожидание</span><button class="secondary-button diagnostic-open" id="console-error-help" type="button" aria-controls="error-help-dialog" disabled>Помочь с ошибкой</button><button class="text-link" id="clear-terminal" type="button">Очистить</button></div></div>
             <pre class="log-output console-output" id="terminal-log" role="log" aria-live="polite" tabindex="0">Логи установки и запуска WebUI появятся здесь.
 </pre>
           </section>
@@ -115,6 +116,7 @@
             <div class="path-control"><input id="models-library-dir" type="text" readonly aria-label="Общая папка моделей" /><button id="browse-models-library" class="secondary-button" type="button">Обзор...</button></div>
             <p class="settings-note">Подключённый из Stability Matrix Forge Neo сохраняет свои пути моделей. Существующие модели можно добавить через «Связать модели» без копирования файлов.</p>
             <div class="setting-row"><div><h2>Чекпоинты</h2><p id="models-path">Загрузка…</p></div></div>
+            <div class="setting-row"><div><h2>Помощь при ошибках</h2><p id="error-help-summary">После ошибки здесь будет доступен локальный разбор и отчёт.</p></div><button id="settings-error-help" class="secondary-button diagnostic-open" type="button" aria-controls="error-help-dialog" disabled>Помочь с ошибкой</button></div>
             <div class="setting-row"><div><h2>Обновления Flow</h2><p id="flow-update-status">Проверка обновлений доступна вручную. Установщики предыдущих версий — на странице выпусков.</p></div><button id="check-flow-update" class="secondary-button" type="button">Проверить</button><button id="install-flow-update" class="primary-button" type="button" hidden>Установить обновление</button><button id="open-flow-releases" class="secondary-button" type="button">Выпуски</button></div>
           </div>
         </section>
@@ -167,6 +169,15 @@
   <div class="gallery-context-menu" id="gallery-context-menu" role="menu" hidden><button id="copy-gallery-image" type="button" role="menuitem">Копировать изображение</button><button id="favorite-gallery-image" type="button" role="menuitem">☆ В избранное</button></div>
   <dialog class="modal glass-surface gallery-delete-dialog" id="gallery-delete-dialog" aria-labelledby="gallery-delete-title"><div class="modal-header"><h2 id="gallery-delete-title">Удалить изображения?</h2></div><p id="gallery-delete-message">Выбранные изображения будут удалены без возможности восстановления.</p><div class="modal-actions"><button class="secondary-button" id="cancel-gallery-delete" type="button">Отмена</button><button class="primary-button gallery-delete-confirm" id="confirm-gallery-delete" type="button">Удалить</button></div></dialog>
   <dialog class="modal glass-surface managed-model-delete-dialog" id="managed-model-delete-dialog" aria-labelledby="managed-model-delete-title"><div class="modal-header"><h2 id="managed-model-delete-title">Удалить модель?</h2></div><p id="managed-model-delete-message">Файл модели будет удалён без возможности восстановления.</p><div class="modal-actions"><button class="secondary-button" id="cancel-managed-model-delete" type="button">Отмена</button><button class="primary-button" id="confirm-managed-model-delete" type="button">Удалить модель</button></div></dialog>
+  <dialog class="modal glass-surface error-help-dialog" id="error-help-dialog" aria-labelledby="error-help-title" aria-describedby="error-help-privacy">
+    <div class="modal-header"><div><span class="eyebrow">ЛОКАЛЬНАЯ ДИАГНОСТИКА</span><h2 id="error-help-title">Помочь с ошибкой</h2></div><button class="icon-button" id="close-error-help" type="button" aria-label="Закрыть помощь">×</button></div>
+    <p class="diagnostic-privacy" id="error-help-privacy">Без отправки логов в интернет и автоматического ремонта. Ссылки на документацию открываются только по нажатию.</p>
+    <pre class="diagnostic-message" id="error-help-message"></pre>
+    <div id="error-help-findings"></div>
+    <section class="diagnostic-report-section" aria-labelledby="error-help-report-title"><h3 id="error-help-report-title">Отчёт для поддержки</h3><p>Токены и личные пути скрываются по шаблонам. В логах могут остаться имена моделей и другой личный текст — проверьте и отредактируйте отчёт перед передачей.</p><label class="diagnostic-report-label" for="error-help-report">Предпросмотр отчёта — текст можно изменить</label><textarea class="diagnostic-report" id="error-help-report" spellcheck="false" disabled></textarea></section>
+    <p class="diagnostic-status" id="error-help-status" role="status" aria-live="polite"></p>
+    <div class="diagnostic-footer"><button class="secondary-button" id="dismiss-error-help" type="button">Закрыть</button><button class="primary-button" id="copy-error-report" type="button" disabled>Скопировать отчёт</button></div>
+  </dialog>
   <script src="/src/renderer.ts" type="module"></script>
 </body>
 </html>

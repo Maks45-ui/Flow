@@ -458,6 +458,21 @@ fn open_civitai_site(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn open_diagnostic_source(app: AppHandle, url: String) -> Result<(), String> {
+    const SOURCES: &[&str] = &[
+        "https://docs.pytorch.org/docs/stable/notes/cuda.html#memory-management",
+        "https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--1300-1699-",
+        "https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-",
+        "https://developer.civitai.com/site/guide/errors",
+        "https://docs.rs/reqwest/0.12/reqwest/blocking/struct.ClientBuilder.html#method.timeout",
+    ];
+    if !SOURCES.contains(&url.as_str()) {
+        return Err("Можно открыть только проверенный источник диагностики.".to_owned());
+    }
+    app.opener().open_url(url, None::<&str>).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn get_webui_arguments(app: AppHandle) -> Result<Vec<String>, String> {
     webui_arguments(&app)
 }
@@ -528,6 +543,7 @@ pub fn run() {
             save_onboarding_token,
             finish_onboarding,
             open_civitai_site,
+            open_diagnostic_source,
             get_webui_arguments,
             save_webui_arguments,
             get_webui_settings,
