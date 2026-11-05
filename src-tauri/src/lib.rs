@@ -488,7 +488,11 @@ fn set_page(page: String) {
 pub fn run() {
     #[cfg(windows)]
     configure_webview2();
-    tauri::Builder::default()
+    // Restore the previous size, position and maximized/fullscreen state on desktop.
+    let builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
