@@ -34,6 +34,7 @@ jobs:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
+      - run: pnpm run test:diagnostics
       - run: python -m unittest discover -s tests -v
       - run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release
       - name: Build Windows installer

@@ -1,11 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
+import { withErrorHelp } from "./error-help";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AppState, CheckReport, DownloadedFile, FlowAPI, FlowUpdate, GalleryImage, GalleryImageDetails, InstalledModel, ModelFile, ModelSummary, PackageInfo, Page, StarterModel, TaskEvent, WebUISettings, WebUIStatus } from "./types";
 
 // The UI only knows this typed contract. System access stays in Rust.
-export const flowApi: FlowAPI = {
+const nativeFlowApi: FlowAPI = {
   getState: () => invoke<AppState>("get_state"),
+  openDiagnosticSource: (url: string) => invoke<void>("open_diagnostic_source", { url }),
   getWebUIStatus: () => invoke<WebUIStatus>("get_webui_status"),
   installForgeNeo: (installationDir: string) => invoke<void>("install_forge_neo_web_ui", { installationDir }),
   cancelInstall: () => invoke<void>("cancel_install"),
@@ -59,3 +61,5 @@ export const flowApi: FlowAPI = {
   }
 };
 
+
+export const flowApi: FlowAPI = withErrorHelp(nativeFlowApi);

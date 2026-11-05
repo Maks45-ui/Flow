@@ -131,6 +131,7 @@ export interface WebUISettings {
 }
 
 export interface FlowAPI {
+  openDiagnosticSource(url: string): Promise<void>;
   getState(): Promise<AppState>;
   getWebUIStatus(): Promise<WebUIStatus>;
   installForgeNeo(installationDir: string): Promise<void>;
