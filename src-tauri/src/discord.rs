@@ -37,7 +37,14 @@ mod windows {
             let Ok(mut slot) = connection.lock() else { return };
             if slot.is_none() { *slot = connect(); }
             let Some(pipe) = slot.as_mut() else { return };
-            let mut activity = json!({"state": state, "timestamps": {"start": started}});
+            let mut activity = json!({
+                "state": state,
+                "timestamps": {"start": started},
+                "buttons": [
+                    {"label": "Discord-сервер", "url": "https://discord.gg/Pn59JvAqUX"},
+                    {"label": "GitHub", "url": "https://github.com/Maks45-ui/Flow"}
+                ]
+            });
             if page == "settings" { activity["details"] = json!("Управление Flow"); }
             let payload = json!({"cmd": "SET_ACTIVITY", "args": {"pid": std::process::id(), "activity": activity}, "nonce": format!("{started}-{page}")});
             if send_frame(pipe, 1, payload).is_err() { *slot = None; }
