@@ -1,0 +1,35 @@
+/* Local error assistance; theme tokens match the rest of Flow. */
+.diagnostic-open { min-height: 44px; white-space: nowrap; }
+.diagnostics-toast-help { display: block; min-height: 44px; margin-top: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--accent); font: inherit; font-weight: 600; pointer-events: auto; }
+.diagnostics-toast-help:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.error-help-dialog.modal { width: min(760px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 24px; overflow-y: auto; font-size: 14px; line-height: 1.5; }
+.error-help-dialog p, .error-help-dialog button { font-size: 14px; }
+.error-help-dialog .modal-header { align-items: flex-start; gap: 16px; }
+.error-help-dialog h2 { margin: 4px 0 0; font-size: 23px; line-height: 1.25; }
+.error-help-dialog .icon-button { width: 44px; height: 44px; }
+.diagnostic-privacy { margin: 16px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); background: var(--surface); }
+.diagnostic-message { margin: 0 0 16px; padding: 12px 14px; border-left: 3px solid var(--danger); background: var(--surface); white-space: pre-wrap; overflow-wrap: anywhere; font: 14px/1.55 var(--font-mono); }
+.diagnostic-card { margin: 0 0 16px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.diagnostic-card h3 { margin: 0 0 12px; font-size: 18px; line-height: 1.3; }
+.diagnostic-card h4 { margin: 16px 0 8px; font-size: 14px; }
+.diagnostic-card p { margin: 8px 0; }
+.diagnostic-fact { font-weight: 600; }
+.diagnostic-steps { margin: 0; padding-left: 24px; }
+.diagnostic-steps li + li { margin-top: 8px; }
+.diagnostic-evidence { margin-top: 16px; color: var(--muted); }
+.diagnostic-evidence summary { min-height: 44px; cursor: pointer; }
+.diagnostic-evidence pre { padding: 10px; background: var(--surface); white-space: pre-wrap; overflow-wrap: anywhere; font: 14px/1.5 var(--font-mono); }
+.diagnostic-card-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 16px; color: var(--muted); font-size: 14px; }
+.diagnostic-source { min-height: 44px; white-space: normal; text-align: left; font-size: 14px; }
+.diagnostic-report-section h3 { margin: 20px 0 8px; font-size: 18px; }
+.diagnostic-report-section p { margin: 8px 0 12px; color: var(--muted); }
+.diagnostic-report-label { display: block; margin-bottom: 8px; font-weight: 600; }
+.diagnostic-report { display: block; width: 100%; min-height: 180px; resize: vertical; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: 14px/1.6 var(--font-mono); }
+.diagnostic-report:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.diagnostic-status { min-height: 42px; margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+.diagnostic-footer { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; margin-top: 12px; }
+.diagnostic-footer button { min-height: 44px; }
+@media (max-width: 760px) { .console-heading { flex-wrap: wrap; } .console-actions { flex-wrap: wrap; } }
+@media (max-width: 520px) { .error-help-dialog.modal { padding: 16px; } .diagnostic-card { padding: 14px; } .diagnostic-footer button { flex: 1 1 auto; } }
+
+@media (prefers-reduced-motion: reduce) { .error-help-dialog.modal[open] { animation: none; } }
