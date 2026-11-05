@@ -82,6 +82,9 @@ let activeModelFilter = "all";
 let searchSequence = 0;
 let gallerySequence = 0;
 let homeRecentSequence = 0;
+let homeRecentSignature = "";
+let homeRecentRefreshing = false;
+let homeRecentRefreshQueued = false;
 let inspectorSequence = 0;
 let inspectedGalleryImage: GalleryImage | null = null;
 
@@ -750,6 +753,9 @@ function showGalleryContextMenu(item: GalleryImage, x: number, y: number): void 
 }
 
 function renderHomeRecent(images: GalleryImage[]): void {
+  const signature = JSON.stringify([images.length, images.slice(0, 6).map((item) => [item.path, item.modifiedAt])]);
+  if (signature === homeRecentSignature) return;
+  homeRecentSignature = signature;
   homeRecentGrid.replaceChildren();
   element<HTMLElement>("home-generated-count").textContent = String(images.length);
   if (images.length === 0) {
@@ -777,12 +783,23 @@ function renderHomeRecent(images: GalleryImage[]): void {
 }
 
 async function refreshHomeRecent(): Promise<void> {
+  if (homeRecentRefreshing) {
+    homeRecentRefreshQueued = true;
+    return;
+  }
+  homeRecentRefreshing = true;
   const sequence = ++homeRecentSequence;
   try {
     const images = await window.flow.listGalleryImages();
     if (sequence === homeRecentSequence) renderHomeRecent(images);
   } catch {
-    if (sequence === homeRecentSequence) renderHomeRecent([]);
+    if (sequence === homeRecentSequence && !homeRecentSignature) renderHomeRecent([]);
+  } finally {
+    homeRecentRefreshing = false;
+    if (homeRecentRefreshQueued) {
+      homeRecentRefreshQueued = false;
+      void refreshHomeRecent();
+    }
   }
 }
 
@@ -988,6 +1005,7 @@ async function refreshGallery(): Promise<void> {
     if (sequence !== gallerySequence) return;
 
     galleryItems = images;
+    ++homeRecentSequence;
     renderHomeRecent(images);
     renderGalleryFiltered();
   } catch (error) {
@@ -1577,7 +1595,16 @@ void refreshHomeRecent();
 document.body.dataset.page = "home";
 window.setInterval(updateHomeUptime, 1_000);
 window.setInterval(() => { if (document.visibilityState === "visible") void refreshWebUIStatus(); }, 15_000);
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void refreshWebUIStatus(); });
+window.setInterval(() => {
+  if (document.visibilityState === "visible" && document.body.dataset.page === "home" && webuiRunning) {
+    void refreshHomeRecent();
+  }
+}, 4_000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  void refreshWebUIStatus();
+  if (document.body.dataset.page === "home") void refreshHomeRecent();
+});
 void downloadManager.restore().catch((error: unknown) => notify(message(error)));
 void window.flow.setPage("home").catch(() => { /* Discord may be unavailable. */ });
 
