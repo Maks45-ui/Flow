@@ -531,10 +531,51 @@ function renderPackages(state: AppState): void {
         await openWebuiSettings();
       } catch (error) { notify(message(error)); }
     });
-    const more = make("details", "package-more");
-    const moreSummary = make("summary", "secondary-button", "•••");
+    const more = make("div", "package-more");
+    const moreSummary = make("button", "secondary-button package-more-trigger", "•••");
+    moreSummary.type = "button";
     moreSummary.setAttribute("aria-label", "Дополнительные действия с пакетом");
-    more.append(moreSummary, settings);
+    moreSummary.setAttribute("aria-expanded", "false");
+    const moreMenu = make("div", "package-more-menu");
+    moreMenu.id = `package-more-${item.id}`;
+    moreMenu.popover = "auto";
+    moreSummary.setAttribute("aria-controls", moreMenu.id);
+    moreSummary.addEventListener("click", () => {
+      if (moreMenu.matches(":popover-open")) {
+        moreMenu.hidePopover();
+        return;
+      }
+      moreMenu.style.visibility = "hidden";
+      moreMenu.showPopover();
+      const trigger = moreSummary.getBoundingClientRect();
+      const width = moreMenu.offsetWidth;
+      const height = moreMenu.offsetHeight;
+      const left = Math.max(8, Math.min(trigger.right - width, window.innerWidth - width - 8));
+      const below = trigger.bottom + 6;
+      const top = below + height <= window.innerHeight - 8 ? below : Math.max(8, trigger.top - height - 6);
+      moreMenu.style.left = `${left}px`;
+      moreMenu.style.top = `${top}px`;
+      moreMenu.style.visibility = "visible";
+    });
+    moreMenu.addEventListener("toggle", () => {
+      const isOpen = moreMenu.matches(":popover-open");
+      moreSummary.setAttribute("aria-expanded", String(isOpen));
+      if (isOpen) {
+        document.addEventListener("scroll", closeMoreMenu, true);
+        window.addEventListener("resize", closeMoreMenu);
+      } else {
+        document.removeEventListener("scroll", closeMoreMenu, true);
+        window.removeEventListener("resize", closeMoreMenu);
+      }
+    });
+    const closeMoreMenu = () => {
+      if (moreMenu.matches(":popover-open")) moreMenu.hidePopover();
+    };
+    moreMenu.addEventListener("click", (event) => {
+      if ((event.target as HTMLElement).closest("button")) moreMenu.hidePopover();
+    });
+    more.append(moreSummary, moreMenu);
+    moreMenu.append(settings);
     actions.append(launch, stop, open, more);
     const linkModels = make("button", "secondary-button", "Связать модели");
     linkModels.type = "button";
@@ -549,13 +590,13 @@ function renderPackages(state: AppState): void {
         await refreshState();
       } catch (error) { notify(message(error)); linkModels.disabled = false; }
     });
-    more.append(linkModels);
+    moreMenu.append(linkModels);
     const restart = make("button", "secondary-button package-restart", "Перезапустить");
     restart.type = "button";
     restart.dataset.packageId = item.id;
     restart.disabled = !item.running || item.stopping || installing || webuiControlBusy;
     restart.addEventListener("click", () => void controlWebui(true));
-    more.append(restart);
+    moreMenu.append(restart);
     if (item.managed) {
       const check = make("button", "secondary-button", "Проверить");
       check.type = "button";
@@ -568,13 +609,13 @@ function renderPackages(state: AppState): void {
       update.type = "button";
       update.disabled = item.running || installing;
       update.addEventListener("click", () => void runPackageMaintenance(item, "update"));
-      more.append(check, repair, update);
+      moreMenu.append(check, repair, update);
       if (item.hasRollback) {
         const rollback = make("button", "secondary-button", "Откатить");
         rollback.type = "button";
         rollback.disabled = item.running || installing;
         rollback.addEventListener("click", () => void runPackageMaintenance(item, "rollback"));
-        more.append(rollback);
+        moreMenu.append(rollback);
       }
     }
     card.append(actions);
