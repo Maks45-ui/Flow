@@ -646,7 +646,8 @@ async function refreshWebUIStatus(): Promise<void> {
     webuiRunning = status.running;
     updateConsoleControls();
     const ready = status.running && status.port !== null && status.pingMs !== null;
-    if (!status.running) webuiStartedAt = null;
+    webuiStartedAt = status.running && status.uptimeSeconds !== null
+      ? performance.now() - status.uptimeSeconds * 1000 : null;
     const mode = ready ? "ready" : status.running ? "pending" : "offline";
     element<HTMLElement>("runtime-dot").dataset.state = mode;
     element<HTMLElement>("sidebar-status-dot").dataset.state = mode;
@@ -657,20 +658,20 @@ async function refreshWebUIStatus(): Promise<void> {
     element<HTMLElement>("runtime-ping").textContent = status.pingMs === null ? "—" : `${status.pingMs} ms`;
     const used = status.vramUsedGb;
     const total = status.vramTotalGb;
-    element<HTMLElement>("home-vram").textContent = used !== null && total !== null
-      ? `${used.toFixed(1)} / ${total.toFixed(1)} ГБ` : "— / — ГБ";
+    element<HTMLElement>("home-vram").textContent = `${used === null ? "—" : used.toFixed(1)} / ${total === null ? "—" : total.toFixed(1)} ГБ`;
     element<HTMLElement>("home-vram-fill").style.width = used !== null && total !== null && total > 0
       ? `${Math.min(100, Math.round(used / total * 100))}%` : "0%";
     element<HTMLElement>("home-port").textContent = status.port === null ? "—" : `:${status.port}`;
     updateHomeUptime();
-    element<HTMLElement>("runtime-vram").textContent = used !== null && total !== null
-      ? `${used.toFixed(1)} / ${total.toFixed(1)} GB` : "— / — GB";
+    element<HTMLElement>("runtime-vram").textContent = `${used === null ? "—" : used.toFixed(1)} / ${total === null ? "—" : total.toFixed(1)} GB`;
     const model = status.activeModel?.trim() || "—";
     const modelNode = element<HTMLElement>("runtime-model");
     modelNode.textContent = model;
     modelNode.title = model === "—" ? "Доступно при запуске WebUI с --api" : model;
   } catch {
     if (sequence !== runtimeSequence) return;
+    webuiStartedAt = null;
+    updateHomeUptime();
     element<HTMLElement>("runtime-dot").dataset.state = "offline";
     element<HTMLElement>("sidebar-status-dot").dataset.state = "offline";
     element<HTMLElement>("runtime-state").textContent = "Недоступен";
@@ -687,10 +688,12 @@ async function refreshWebUIStatus(): Promise<void> {
 }
 
 function updateHomeUptime(): void {
-  if (!webuiStartedAt) { element<HTMLElement>("home-uptime").textContent = "—"; return; }
-  const minutes = Math.max(0, Math.floor((Date.now() - webuiStartedAt) / 60_000));
+  if (webuiStartedAt === null) { element<HTMLElement>("home-uptime").textContent = "—"; return; }
+  const seconds = Math.max(0, Math.floor((performance.now() - webuiStartedAt) / 1000));
+  const minutes = Math.floor(seconds / 60);
   element<HTMLElement>("home-uptime").textContent = minutes >= 60
-    ? `${Math.floor(minutes / 60)} ч ${minutes % 60} мин` : `${minutes} мин`;
+    ? `${Math.floor(minutes / 60)} ч ${minutes % 60} мин`
+    : minutes > 0 ? `${minutes} мин ${seconds % 60} с` : `${seconds} с`;
 }
 
 const imageObserver = new IntersectionObserver((entries, observer) => {
@@ -1171,8 +1174,7 @@ function onTask(event: TaskEvent): void {
     }
     if (event.phase === "stabilizing") setConsoleStatus("Подготовка WebUI", "running");
     if (event.phase === "ready" && event.url) {
-      webuiStartedAt = Date.now();
-      updateHomeUptime();
+      void refreshWebUIStatus();
       setConsoleStatus("WebUI запущен", "running");
       void refreshState();
     }
@@ -1573,7 +1575,7 @@ void firstRun.start().catch((error: unknown) => notify(message(error)));
 void refreshState();
 void refreshHomeRecent();
 document.body.dataset.page = "home";
-window.setInterval(updateHomeUptime, 60_000);
+window.setInterval(updateHomeUptime, 1_000);
 window.setInterval(() => { if (document.visibilityState === "visible") void refreshWebUIStatus(); }, 15_000);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void refreshWebUIStatus(); });
 void downloadManager.restore().catch((error: unknown) => notify(message(error)));

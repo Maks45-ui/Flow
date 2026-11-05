@@ -44,6 +44,7 @@ export interface FlowUpdate {
 
 export interface WebUIStatus {
   running: boolean;
+  uptimeSeconds: number | null;
   port: number | null;
   pingMs: number | null;
   vramUsedGb: number | null;

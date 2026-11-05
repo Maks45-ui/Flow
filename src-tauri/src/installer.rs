@@ -8,7 +8,7 @@ use std::{
     collections::HashSet,
     sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Arc, Mutex},
     thread,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, State};
 use tauri_plugin_opener::OpenerExt;
@@ -87,6 +87,7 @@ pub(crate) struct WebuiControl {
     exited: Arc<AtomicBool>,
     pid: Arc<Mutex<Option<u32>>>,
     ready_url: Arc<Mutex<Option<String>>>,
+    started_at: Arc<Mutex<Option<Instant>>>,
     ready_pending: Arc<AtomicBool>,
     generation: Arc<AtomicU64>,
     package_id: Arc<Mutex<Option<String>>>,
@@ -113,6 +114,12 @@ impl WebuiControl {
     pub(crate) fn ready_url(&self) -> Option<String> {
         if self.exited.load(Ordering::SeqCst) || self.stopping.load(Ordering::SeqCst) { return None; }
         self.ready_url.lock().unwrap_or_else(|poison| poison.into_inner()).clone()
+    }
+
+    pub(crate) fn uptime_seconds(&self) -> Option<u64> {
+        if !self.is_running() || self.exited.load(Ordering::SeqCst) { return None; }
+        self.started_at.lock().unwrap_or_else(|poison| poison.into_inner())
+            .as_ref().map(|started| started.elapsed().as_secs())
     }
 }
 
@@ -425,7 +432,7 @@ fn ensure_flow_safe_switch_extension(directory: &Path) -> Result<(), String> {
         .map_err(|error| format!("Не удалось обновить расширение очистки памяти: {error}"))
 }
 
-fn nvidia_vram_mib() -> Option<u64> {
+pub(crate) fn nvidia_memory_mib() -> Option<(u64, u64)> {
     let mut candidates = vec![PathBuf::from("nvidia-smi")];
     if cfg!(windows) {
         if let Some(program_files) = std::env::var_os("ProgramFiles") {
@@ -434,18 +441,27 @@ fn nvidia_vram_mib() -> Option<u64> {
     }
     for program in candidates {
         let mut command = Command::new(program);
-        command.args(["--query-gpu=memory.total", "--format=csv,noheader,nounits"])
+        command.args(["--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"])
             .stdin(Stdio::null());
         hide_console(&mut command);
         if let Ok(output) = command.output() {
             if output.status.success() {
-                if let Some(mib) = String::from_utf8_lossy(&output.stdout).lines().next().and_then(|line| line.trim().parse().ok()) {
-                    return Some(mib);
+                let output_text = String::from_utf8_lossy(&output.stdout);
+                if let Some(line) = output_text.lines().next() {
+                    let mut values = line.split(',').map(str::trim);
+                    if let (Some(Ok(used)), Some(Ok(total))) =
+                        (values.next().map(str::parse::<u64>), values.next().map(str::parse::<u64>)) {
+                        return Some((used, total));
+                    }
                 }
             }
         }
     }
     None
+}
+
+fn nvidia_vram_mib() -> Option<u64> {
+    nvidia_memory_mib().map(|(_, total)| total)
 }
 
 fn apply_memory_flags(arguments: &mut Vec<String>, memory_profile: bool, vram_mib: Option<u64>) -> bool {
@@ -937,6 +953,7 @@ pub(crate) fn launch_web_ui(app: AppHandle, webui: State<'_, WebuiControl>, inst
     webui.ready_pending.store(false, Ordering::SeqCst);
     webui.generation.fetch_add(1, Ordering::SeqCst);
     *webui.ready_url.lock().unwrap_or_else(|poison| poison.into_inner()) = None;
+    *webui.started_at.lock().unwrap_or_else(|poison| poison.into_inner()) = None;
     // Python writes to a real file. A WebView2/Flow crash cannot close its stdout pipe.
     let log_setup = (|| -> Result<(fs::File, fs::File, fs::File, fs::File, PathBuf, PathBuf), String> {
         let log_dir = crate::data_dir(&app)?.join("logs");
@@ -977,6 +994,7 @@ pub(crate) fn launch_web_ui(app: AppHandle, webui: State<'_, WebuiControl>, inst
         *webui.job.lock().unwrap_or_else(|poison| poison.into_inner()) = Some(job);
     }
     *webui.pid.lock().unwrap_or_else(|poison| poison.into_inner()) = Some(child.id());
+    *webui.started_at.lock().unwrap_or_else(|poison| poison.into_inner()) = Some(Instant::now());
     notify_kind(&app, "launch", "starting", "WebUI запускается…");
     if let Some(mib) = detected_vram {
         notify_kind(&app, "launch", "log", format!("NVIDIA VRAM: {mib} MiB; режим экономии памяти: {}.", if memory_profile { "включён" } else { "выключен" }));
@@ -1006,6 +1024,7 @@ pub(crate) fn launch_web_ui(app: AppHandle, webui: State<'_, WebuiControl>, inst
         let was_ready = control.ready_url.lock().unwrap_or_else(|poison| poison.into_inner()).is_some();
         *control.pid.lock().unwrap_or_else(|poison| poison.into_inner()) = None;
         *control.ready_url.lock().unwrap_or_else(|poison| poison.into_inner()) = None;
+        *control.started_at.lock().unwrap_or_else(|poison| poison.into_inner()) = None;
         control.stopped.store(true, Ordering::SeqCst);
         control.running.store(false, Ordering::SeqCst);
         match result {

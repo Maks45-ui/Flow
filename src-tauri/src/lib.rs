@@ -75,6 +75,7 @@ struct PackageInfo {
 #[serde(rename_all = "camelCase")]
 struct WebuiStatus {
     running: bool,
+    uptime_seconds: Option<u64>,
     port: Option<u16>,
     ping_ms: Option<u64>,
     vram_used_gb: Option<f64>,
@@ -82,16 +83,22 @@ struct WebuiStatus {
     active_model: Option<String>,
 }
 
-/// Read only the local WebUI process that Flow started. API metrics are optional.
+/// Report the local WebUI process and GPU memory; WebUI API metrics are optional.
 #[tauri::command]
 async fn get_webui_status(webui: State<'_, installer::WebuiControl>) -> Result<WebuiStatus, String> {
+    let gpu_memory = tauri::async_runtime::spawn_blocking(installer::nvidia_memory_mib)
+        .await.ok().flatten();
+    let gib = 1024.0;
+    let vram_used_gb = gpu_memory.map(|(used, _)| used as f64 / gib);
+    let vram_total_gb = gpu_memory.map(|(_, total)| total as f64 / gib);
+    let uptime_seconds = webui.uptime_seconds();
     let Some(ready_url) = webui.ready_url() else {
-        return Ok(WebuiStatus { running: webui.is_running(), port: None, ping_ms: None,
-            vram_used_gb: None, vram_total_gb: None, active_model: None });
+        return Ok(WebuiStatus { running: webui.is_running(), uptime_seconds, port: None, ping_ms: None,
+            vram_used_gb, vram_total_gb, active_model: None });
     };
     let port = reqwest::Url::parse(&ready_url).ok().and_then(|url| url.port());
-    let mut status = WebuiStatus { running: true, port, ping_ms: None,
-        vram_used_gb: None, vram_total_gb: None, active_model: None };
+    let mut status = WebuiStatus { running: true, uptime_seconds, port, ping_ms: None,
+        vram_used_gb, vram_total_gb, active_model: None };
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(2))
         .build().map_err(|error| error.to_string())?;
@@ -105,8 +112,12 @@ async fn get_webui_status(webui: State<'_, installer::WebuiControl>) -> Result<W
             if let Ok(value) = memory.json::<Value>().await {
                 let system = &value["cuda"]["system"];
                 let gib = 1024.0 * 1024.0 * 1024.0;
-                status.vram_used_gb = system["used"].as_f64().map(|bytes| bytes / gib);
-                status.vram_total_gb = system["total"].as_f64().map(|bytes| bytes / gib);
+                if status.vram_used_gb.is_none() {
+                    status.vram_used_gb = system["used"].as_f64().map(|bytes| bytes / gib);
+                }
+                if status.vram_total_gb.is_none() {
+                    status.vram_total_gb = system["total"].as_f64().map(|bytes| bytes / gib);
+                }
             }
         }
     }
@@ -119,6 +130,7 @@ async fn get_webui_status(webui: State<'_, installer::WebuiControl>) -> Result<W
             }
         }
     }
+    status.uptime_seconds = webui.uptime_seconds();
     Ok(status)
 }
 
