@@ -585,7 +585,7 @@ pub fn run() {
 
 #[cfg(windows)]
 fn configure_webview2() {
-    // Diagnostic fallback only. WebUI itself opens in the system browser, outside this WebView2.
+    // Optional diagnostic switch for software rendering of Flow's main window.
     let requested = std::env::var("FLOW_WEBVIEW2_SOFTWARE_RENDERING").as_deref() == Ok("1")
         || std::env::args_os().any(|argument| argument.to_string_lossy() == "--flow-software-rendering");
     if !requested { return; }
