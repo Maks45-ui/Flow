@@ -25,6 +25,7 @@ export class ModelManager {
   private readonly status: HTMLElement;
   private readonly list: HTMLElement;
   private readonly deleteMessage: HTMLElement;
+  private readonly deleteError: HTMLElement;
   private readonly cancelButton: HTMLButtonElement;
   private readonly confirmButton: HTMLButtonElement;
   private models: InstalledModel[] = [];
@@ -44,6 +45,7 @@ export class ModelManager {
     this.status = required<HTMLElement>(page, "#managed-models-status");
     this.list = required<HTMLElement>(page, "#managed-models-list");
     this.deleteMessage = required<HTMLElement>(dialog, "#managed-model-delete-message");
+    this.deleteError = required<HTMLElement>(dialog, "#managed-model-delete-error");
     this.cancelButton = required<HTMLButtonElement>(dialog, "#cancel-managed-model-delete");
     this.confirmButton = required<HTMLButtonElement>(dialog, "#confirm-managed-model-delete");
     this.search.addEventListener("input", () => this.render());
@@ -101,6 +103,8 @@ export class ModelManager {
       remove.addEventListener("click", () => {
         this.pending = model;
         this.deleteMessage.textContent = `Удалить «${model.name}» (${fileSize(model.sizeBytes)}) без возможности восстановления?`;
+        this.deleteError.textContent = "";
+        this.deleteError.hidden = true;
         this.dialog.showModal();
       });
       row.append(icon, details, remove);
@@ -113,17 +117,23 @@ export class ModelManager {
     if (!model) return;
     this.confirmButton.disabled = true;
     this.cancelButton.disabled = true;
+    this.confirmButton.textContent = "Удаление…";
     try {
       await this.api.deleteInstalledModel(model.path);
-      this.notify(`Модель «${model.name}» удалена.`);
       this.dialog.close();
+      ++this.sequence;
+      this.models = this.models.filter((item) => item.path !== model.path);
+      this.render();
+      this.notify(`Модель «${model.name}» удалена.`);
       await this.refresh();
       this.onDeleted();
     } catch (error) {
-      this.notify(`Не удалось удалить модель: ${errorMessage(error)}`);
+      this.deleteError.textContent = `Не удалось удалить модель: ${errorMessage(error)}`;
+      this.deleteError.hidden = false;
     } finally {
       this.confirmButton.disabled = false;
       this.cancelButton.disabled = false;
+      this.confirmButton.textContent = "Удалить модель";
     }
   }
 }

@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::{collections::HashSet, fs, path::{Path, PathBuf}, sync::Arc};
 use tauri::{AppHandle, State};
 
-use crate::{civitai::DownloadControl, installer::{InstallControl, WebuiControl}, paths};
+use crate::{installer::InstallControl, paths};
 
 const MODEL_FOLDERS: [(&str, &str); 3] = [
     ("Stable-diffusion", "Checkpoint"),
@@ -104,6 +104,11 @@ fn checked_model(path: &str, roots: &[ModelRoot]) -> Result<PathBuf, String> {
     Ok(canonical)
 }
 
+fn remove_model(path: &str, roots: &[ModelRoot]) -> Result<(), String> {
+    let model = checked_model(path, roots)?;
+    fs::remove_file(&model).map_err(|error| format!("Не удалось удалить {}: {error}", model.display()))
+}
+
 #[tauri::command]
 pub(crate) async fn list_installed_models(app: AppHandle) -> Result<Vec<InstalledModel>, String> {
     tauri::async_runtime::spawn_blocking(move || collect_models(&model_roots(&app)?))
@@ -115,19 +120,16 @@ pub(crate) fn delete_installed_model(
     app: AppHandle,
     path: String,
     installs: State<'_, Arc<InstallControl>>,
-    webui: State<'_, WebuiControl>,
-    downloads: State<'_, Arc<DownloadControl>>,
 ) -> Result<(), String> {
-    if installs.is_running() || webui.is_running() || downloads.is_running() {
-        return Err("Остановите WebUI и дождитесь завершения установки или загрузки перед удалением модели.".to_owned());
+    if installs.is_running() {
+        return Err("Дождитесь завершения установки пакета перед удалением модели.".to_owned());
     }
-    let model = checked_model(&path, &model_roots(&app)?)?;
-    fs::remove_file(model).map_err(|error| format!("Не удалось удалить модель: {error}"))
+    remove_model(&path, &model_roots(&app)?)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{checked_model, collect_models, supported_model, ModelRoot};
+    use super::{checked_model, collect_models, remove_model, supported_model, ModelRoot};
     use std::{fs, time::{SystemTime, UNIX_EPOCH}};
 
     #[test]
@@ -147,6 +149,10 @@ mod tests {
         assert_eq!(found[0].name, "example.safetensors");
         assert!(checked_model(model.to_str().unwrap(), &roots).is_ok());
         assert!(checked_model(outside.to_str().unwrap(), &roots).is_err());
+        assert!(remove_model(outside.to_str().unwrap(), &roots).is_err());
+        assert!(outside.exists());
+        remove_model(model.to_str().unwrap(), &roots).unwrap();
+        assert!(!model.exists());
         assert!(!supported_model(&nested.join("notes.txt")));
         fs::remove_dir_all(base).unwrap();
     }
