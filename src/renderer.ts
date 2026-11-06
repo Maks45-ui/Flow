@@ -509,7 +509,7 @@ function renderPackages(state: AppState): void {
         await refreshState();
       }
     });
-    const open = make("button", "secondary-button", "Открыть WebUI");
+    const open = make("button", "secondary-button", "Открыть WebUI в Flow");
     open.type = "button";
     open.disabled = !item.readyUrl || item.stopping;
     if (item.readyUrl) open.title = item.readyUrl;
