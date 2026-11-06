@@ -250,6 +250,7 @@ body[data-page="gallery"] .content { padding: 10px 14px 14px; }
 .managed-model-remove { flex: 0 0 auto; min-height: 32px; color: var(--danger); }
 .managed-model-remove:hover { border-color: var(--danger); color: var(--danger); }
 .managed-model-delete-dialog { width: min(440px, calc(100% - 36px)); }
+.managed-model-delete-dialog .managed-model-delete-error { color: var(--danger); }
 
 @media (max-width: 1390px) {
   .topbar { padding: 0 12px; gap: 6px; }
