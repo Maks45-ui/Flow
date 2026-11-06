@@ -10,8 +10,7 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tauri::{AppHandle, State};
-use tauri_plugin_opener::OpenerExt;
+use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 #[cfg(windows)]
 struct WindowsJob(windows_sys::Win32::Foundation::HANDLE);
@@ -1082,16 +1081,51 @@ pub(crate) async fn stop_web_ui(app: AppHandle, webui: State<'_, WebuiControl>) 
     }).await.map_err(|error| error.to_string())?
 }
 
+fn internal_webui_url(raw: &str) -> Result<url::Url, String> {
+    let url = url::Url::parse(raw).map_err(|error| error.to_string())?;
+    if url.scheme() != "http" || url.host_str() != Some("127.0.0.1") || url.port().is_none()
+        || !url.username().is_empty() || url.password().is_some() {
+        return Err("Разрешён только локальный адрес WebUI.".to_owned());
+    }
+    Ok(url)
+}
+
 #[tauri::command]
-pub(crate) fn open_web_ui(app: AppHandle, webui: State<'_, WebuiControl>) -> Result<(), String> {
+pub(crate) async fn open_web_ui(app: AppHandle, webui: State<'_, WebuiControl>) -> Result<(), String> {
     if !webui.is_running() || webui.is_stopping() || webui.exited.load(Ordering::SeqCst) { return Err("WebUI сейчас недоступен.".to_owned()); }
-    let url = webui.ready_url().ok_or("WebUI ещё запускается.")?;
-    app.opener().open_url(url, None::<&str>).map_err(|error| error.to_string())
+    let url = internal_webui_url(&webui.ready_url().ok_or("WebUI ещё запускается.")?)?;
+    if let Some(window) = app.get_webview_window("webui") {
+        if window.url().map(|current| current != url).unwrap_or(true) {
+            window.navigate(url).map_err(|error| error.to_string())?;
+        }
+        window.show().map_err(|error| error.to_string())?;
+        return window.set_focus().map_err(|error| error.to_string());
+    }
+
+    let builder = WebviewWindowBuilder::new(&app, "webui", WebviewUrl::External(url))
+        .title("Flow · WebUI")
+        .inner_size(1280.0, 800.0)
+        .min_inner_size(920.0, 600.0)
+        .center();
+    #[cfg(windows)]
+    let builder = builder
+        // Keep WebUI's renderer separate from Flow and avoid competing with PyTorch for GPU memory.
+        .data_directory(app.path().app_local_data_dir().map_err(|error| error.to_string())?.join("webui-webview2"))
+        .additional_browser_args("--disable-gpu --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection");
+    builder.build().map(|_| ()).map_err(|error| error.to_string())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_memory_flags, flow_requirements_content, is_windows_commit_error, parse_webui_arguments, parse_webui_ready_url, update_sdxl_memory_config};
+    use super::{apply_memory_flags, flow_requirements_content, internal_webui_url, is_windows_commit_error, parse_webui_arguments, parse_webui_ready_url, update_sdxl_memory_config};
+
+    #[test]
+    fn internal_webui_window_accepts_only_loopback_http() {
+        assert!(internal_webui_url("http://127.0.0.1:7861").is_ok());
+        assert!(internal_webui_url("https://127.0.0.1:7861").is_err());
+        assert!(internal_webui_url("http://example.com:7861").is_err());
+        assert!(internal_webui_url("http://127.0.0.1:7861@evil.example").is_err());
+    }
 
     #[test]
     fn recognizes_page_file_failure_without_confusing_other_errors() {
