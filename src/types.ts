@@ -166,6 +166,7 @@ export interface StorageReport {
   files: { path: string; name: string; sizeBytes: number; category: "models" | "outputs" | "packages" }[];
 }
 export interface FlowAPI {
+  openDiscordServer(): Promise<void>;
   inspectModelImport(path: string): Promise<ModelImportPreview>;
   importModelFile(path: string, modelType: string): Promise<string>;
   browseModelFiles(): Promise<string[]>;
