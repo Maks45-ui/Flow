@@ -112,6 +112,7 @@ let stateSequence = 0;
 let debounceTimer: number | undefined;
 let toastTimer: number | undefined;
 let installing = false;
+let connectingExistingPackage = false;
 let installingPackageId: PackageInfo["id"] = "forge-neo";
 let stoppingWebui = false;
 let webuiControlBusy = false;
@@ -162,6 +163,7 @@ function openHomeConsole(): void {
 function setInstalling(value: boolean): void {
   installing = value;
   element<HTMLButtonElement>("start-install").disabled = value;
+  element<HTMLButtonElement>("add-existing-model").disabled = value || connectingExistingPackage;
   homeCancelInstall.hidden = !value;
   homeCancelInstall.disabled = false;
   updateConsoleControls();
@@ -1300,7 +1302,39 @@ menuToggle.addEventListener("click", () => {
     finishSidebarAnimation();
   }
 });
+/** Both entry points use the same validated backend registration; no install or copy. */
+async function connectExistingPackage(directory?: string): Promise<void> {
+  if (connectingExistingPackage || installing) return;
+  connectingExistingPackage = true;
+  const button = element<HTMLButtonElement>("add-existing-model");
+  const submit = element<HTMLButtonElement>("start-install");
+  const wasDisabled = submit.disabled;
+  button.disabled = true;
+  submit.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  try {
+    const selected = directory ?? await window.flow.browseInstallationDirectory(forgeDirInput.value || installationDir);
+    if (!selected) return;
+    await window.flow.registerForgeNeo(selected);
+    activePackageId = "forge-neo";
+    forgeDirInput.value = selected;
+    if (installDialog.open) installDialog.close();
+    await refreshState();
+    await Promise.all([downloadManager.restore(), modelManager.refresh(), workspaceTools.refresh()]);
+    notify("Forge Neo подключён к Flow.");
+    await firstRun.onInstallComplete();
+  } catch (error) { notify(message(error)); }
+  finally {
+    connectingExistingPackage = false;
+    button.disabled = installing;
+    button.removeAttribute("aria-busy");
+    submit.disabled = installing || wasDisabled;
+  }
+}
+
+element<HTMLButtonElement>("add-existing-model").addEventListener("click", () => void connectExistingPackage());
 element<HTMLButtonElement>("add-package").addEventListener("click", () => {
+  if (connectingExistingPackage) return;
   if (installing) openHomeConsole();
   else { installDialog.showModal(); void refreshPreflight(); }
 });
@@ -1326,15 +1360,7 @@ element<HTMLButtonElement>("start-install").addEventListener("click", async () =
   if (installing) return;
   if (installPackageType.value === "forge-neo-import") {
     if (!forgeDirInput.value.trim()) { notify("Выберите папку установленного Forge Neo."); return; }
-    try {
-      await window.flow.registerForgeNeo(forgeDirInput.value);
-      activePackageId = "forge-neo";
-      installDialog.close();
-      notify("Forge Neo подключён к Flow.");
-      await downloadManager.restore();
-      await refreshState();
-      await firstRun.onInstallComplete();
-    } catch (error) { notify(message(error)); }
+    await connectExistingPackage(forgeDirInput.value);
     return;
   }
   if (!installationDir) { notify("Сначала выберите папку установки."); return; }

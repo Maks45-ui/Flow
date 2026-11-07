@@ -1,5 +1,10 @@
 /** UTF-8 source copy → English. Product names, paths and process logs stay unchanged. */
 export const english: Readonly<Record<string, string>> = {
+  "Добавить установленную модель": "Add existing WebUI",
+  "Выберите папку установленного Forge Neo с launch.py и venv": "Choose the installed Forge Neo folder containing launch.py and venv",
+  "Подключение Forge Neo…": "Connecting Forge Neo…",
+  "Дождитесь завершения текущего процесса перед подключением Forge Neo.": "Wait for the current process to finish before connecting Forge Neo.",
+  "В папке не найдены launch.py, modules_forge и готовое окружение venv Forge Neo.": "The folder must contain launch.py, modules_forge and a ready Forge Neo venv environment.",
   "Flow скачает проверенную копию Git при установке": "Flow will download a verified copy of Git during installation",
   "Не найден — установка невозможна": "Not found — installation cannot proceed",
   "Требуется Python 3.10": "Python 3.10 is required",
