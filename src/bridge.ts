@@ -1,14 +1,26 @@
 import { invoke } from "@tauri-apps/api/core";
 import { withErrorHelp } from "./error-help";
+import type { ModelImportPreview, ModelProfile, StorageReport } from "./types";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { AppState, CheckReport, DownloadedFile, FlowAPI, FlowUpdate, GalleryImage, GalleryImageDetails, InstalledModel, ModelFile, ModelSummary, PackageInfo, Page, StarterModel, TaskEvent, WebUISettings, WebUIStatus } from "./types";
+import type { AppState, CheckReport, DownloadedFile, FlowAPI, FlowUpdate, GalleryImage, GalleryImageDetails, GenerationProgress, InstalledModel, ModelFile, ModelSummary, PackageInfo, Page, StarterModel, TaskEvent, WebUISettings, WebUIStatus } from "./types";
 
 // The UI only knows this typed contract. System access stays in Rust.
 const nativeFlowApi: FlowAPI = {
+  inspectModelImport: (path: string) => invoke<ModelImportPreview>("inspect_model_import", { path }),
+  importModelFile: (path: string, modelType: string) => invoke<string>("import_model_file", { path, modelType }),
+  browseModelFiles: async () => {
+    const files = await open({ multiple: true, directory: false, filters: [{ name: "Модели", extensions: ["safetensors", "ckpt", "pt", "pth", "bin"] }] });
+    return Array.isArray(files) ? files : typeof files === "string" ? [files] : [];
+  },
+  getModelProfiles: () => invoke<ModelProfile[]>("get_model_profiles"),
+  saveModelProfile: (profile: ModelProfile) => invoke<void>("save_model_profile", { profile }),
+  generateWithProfile: (model: string, prompt: string) => invoke<void>("generate_with_profile", { model, prompt }),
+  getStorageReport: () => invoke<StorageReport>("get_storage_report"),
   getState: () => invoke<AppState>("get_state"),
   openDiagnosticSource: (url: string) => invoke<void>("open_diagnostic_source", { url }),
   getWebUIStatus: () => invoke<WebUIStatus>("get_webui_status"),
+  getGenerationProgress: () => invoke<GenerationProgress>("get_generation_progress"),
   installForgeNeo: (installationDir: string) => invoke<void>("install_forge_neo_web_ui", { installationDir }),
   cancelInstall: () => invoke<void>("cancel_install"),
   launchWebUI: (packageId?: PackageInfo["id"]) => invoke<void>("launch_web_ui", { packageId }),
