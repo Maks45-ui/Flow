@@ -266,6 +266,9 @@ fn emit_pipe_line(app: &AppHandle, kind: &'static str, phase: &'static str, line
                     percent: None, bytes_per_second: None, task_id: None,
                     bytes_downloaded: None, total_bytes: None,
                 });
+                if let Err(error) = show_webui_window(&app, &control, true) {
+                    notify_kind(&app, "launch", "log", format!("Не удалось открыть окно WebUI в Flow: {error}. Повторите через кнопку открытия."));
+                }
             });
         }
     }
@@ -891,6 +894,7 @@ pub(crate) fn launch_web_ui(app: AppHandle, webui: State<'_, WebuiControl>, inst
     let python = venv_python(&directory);
     if !python.is_file() { return Err("Виртуальное окружение WebUI не найдено.".to_owned()); }
     let mut arguments = parse_webui_arguments(&crate::webui_arguments(&app)?)?;
+    disable_browser_autolaunch(&directory, &mut arguments)?;
     // Flow's local progress and model status need the API. Do not expose it implicitly
     // when the user enabled remote access or sharing.
     if !arguments.iter().any(|arg| arg == "--api")
@@ -1045,6 +1049,31 @@ pub(crate) fn launch_web_ui(app: AppHandle, webui: State<'_, WebuiControl>, inst
     Ok(())
 }
 
+fn launch_option(arguments: &[String], name: &str) -> Option<PathBuf> {
+    arguments.iter().enumerate().find_map(|(index, argument)| {
+        if argument == name { arguments.get(index + 1).map(PathBuf::from) }
+        else { argument.strip_prefix(&format!("{name}=")).map(PathBuf::from) }
+    })
+}
+
+fn disable_browser_autolaunch(directory: &Path, arguments: &mut Vec<String>) -> Result<(), String> {
+    arguments.retain(|argument| argument != "--autolaunch" && !argument.starts_with("--autolaunch="));
+    let data = launch_option(arguments, "--data-dir").unwrap_or_else(|| directory.to_path_buf());
+    let data = if data.is_absolute() { data } else { directory.join(data) };
+    let config = launch_option(arguments, "--ui-settings-file").unwrap_or_else(|| data.join("config.json"));
+    let config = if config.is_absolute() { config } else { directory.join(config) };
+    let mut settings: serde_json::Value = if config.exists() {
+        serde_json::from_slice(&fs::read(&config).map_err(|error| error.to_string())?)
+            .map_err(|error| format!("Не удалось прочитать настройки WebUI: {error}"))?
+    } else { json!({}) };
+    let object = settings.as_object_mut().ok_or("Настройки WebUI должны быть JSON-объектом.")?;
+    if object.get("auto_launch_browser").and_then(|value| value.as_str()) == Some("Disable") { return Ok(()); }
+    object.insert("auto_launch_browser".to_owned(), json!("Disable"));
+    if let Some(parent) = config.parent() { fs::create_dir_all(parent).map_err(|error| error.to_string())?; }
+    fs::write(config, serde_json::to_vec_pretty(&settings).map_err(|error| error.to_string())?)
+        .map_err(|error| format!("Не удалось отключить автозапуск браузера WebUI: {error}"))
+}
+
 #[tauri::command]
 pub(crate) async fn stop_web_ui(app: AppHandle, webui: State<'_, WebuiControl>) -> Result<(), String> {
     if !webui.is_running() || webui.exited.load(Ordering::SeqCst) { return Err("WebUI уже остановлен.".to_owned()); }
@@ -1099,17 +1128,21 @@ fn internal_webui_url(raw: &str) -> Result<url::Url, String> {
 
 #[tauri::command]
 pub(crate) async fn open_web_ui(app: AppHandle, webui: State<'_, WebuiControl>) -> Result<(), String> {
+    show_webui_window(&app, &webui, false)
+}
+
+fn show_webui_window(app: &AppHandle, webui: &WebuiControl, reload: bool) -> Result<(), String> {
     if !webui.is_running() || webui.is_stopping() || webui.exited.load(Ordering::SeqCst) { return Err("WebUI сейчас недоступен.".to_owned()); }
     let url = internal_webui_url(&webui.ready_url().ok_or("WebUI ещё запускается.")?)?;
     if let Some(window) = app.get_webview_window("webui") {
-        if window.url().map(|current| current != url).unwrap_or(true) {
+        if reload || window.url().map(|current| current != url).unwrap_or(true) {
             window.navigate(url).map_err(|error| error.to_string())?;
         }
         window.show().map_err(|error| error.to_string())?;
         return window.set_focus().map_err(|error| error.to_string());
     }
 
-    let builder = WebviewWindowBuilder::new(&app, "webui", WebviewUrl::External(url))
+    let builder = WebviewWindowBuilder::new(app, "webui", WebviewUrl::External(url))
         .title("Flow · WebUI")
         .inner_size(1280.0, 800.0)
         .min_inner_size(920.0, 600.0)
@@ -1124,6 +1157,25 @@ pub(crate) async fn open_web_ui(app: AppHandle, webui: State<'_, WebuiControl>) 
 
 #[cfg(test)]
 mod tests {
+    use super::disable_browser_autolaunch;
+    #[test]
+    fn browser_autolaunch_is_disabled_without_losing_webui_settings() {
+        let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("flow-browser-{stamp}"));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("custom.json");
+        std::fs::write(&path, r#"{"auto_launch_browser":"Local","sd_model_checkpoint":"example"}"#).unwrap();
+        let mut args = vec!["--autolaunch".to_owned(), "--api".to_owned(), "--ui-settings-file=custom.json".to_owned()];
+        disable_browser_autolaunch(&root, &mut args).unwrap();
+        assert!(!args.iter().any(|argument| argument == "--autolaunch"));
+        assert!(args.iter().any(|argument| argument == "--api"));
+        let config: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        assert_eq!(config["auto_launch_browser"], "Disable");
+        assert_eq!(config["sd_model_checkpoint"], "example");
+        disable_browser_autolaunch(&root, &mut Vec::new()).unwrap();
+        assert!(root.join("config.json").is_file());
+        std::fs::remove_dir_all(root).unwrap();
+    }
     use super::{apply_memory_flags, flow_requirements_content, internal_webui_url, is_windows_commit_error, parse_webui_arguments, parse_webui_ready_url, update_sdxl_memory_config};
 
     #[test]
