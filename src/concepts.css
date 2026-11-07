@@ -7,6 +7,10 @@
 .sidebar-brand img { width: 33px; height: 33px; }
 .menu-toggle { order: 1; flex: 0 0 auto; width: 25px; height: 25px; font-size: 14px; opacity: .75; }
 .navigation { gap: 6px; }
+.discord-nav { margin-top: auto; }
+.discord-nav + .settings-nav { margin-top: 0; }
+.discord-nav .nav-label { white-space: normal; line-height: 1.25; font-size: 11px; }
+.discord-nav .nav-icon svg { fill: currentColor; stroke: none; }
 .nav-item { height: 42px; padding: 0 11px; gap: 11px; border-radius: 9px; font-size: 12px; }
 .nav-icon, .nav-icon svg { width: 18px; height: 18px; }
 .nav-item.active, .nav-item.active:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 17%, var(--panel)); }
