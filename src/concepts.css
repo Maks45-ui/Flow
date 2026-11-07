@@ -48,7 +48,7 @@ body[data-page="home"] .content { flex: 1 1 auto; min-height: 0; overflow: hidde
 .studio-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .studio-toolbar h2 { font-size: 13px; font-weight: 640; }
 .studio-package-count { color: var(--muted); font-size: 11px; }
-.studio-toolbar > div { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 11px; }
+.studio-toolbar > div { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 11px; }
 .studio-toolbar button { min-height: 30px; }
 #page-home .package-list { display: grid; gap: 12px; min-height: 0; }
 #page-home .package-card.glass-surface { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 0 0 13px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
