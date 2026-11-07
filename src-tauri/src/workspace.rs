@@ -135,4 +135,18 @@ mod tests {
             sampler: "Euler".into(), vae: "Automatic".into(), memory: "auto".into() };
         assert!(validate(&p).is_ok()); p.width = 1025; assert!(validate(&p).is_err());
     }
+    #[test]
+    fn storage_counts_shared_paths_once() {
+        let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("flow-storage-{stamp}"));
+        fs::create_dir_all(root.join("models")).unwrap();
+        fs::write(root.join("models/example.safetensors"), b"model").unwrap();
+        fs::write(root.join("launch.py"), b"app").unwrap();
+        let mut report = StorageReport::default(); let mut seen = HashSet::new();
+        scan(&root.join("models"), "models", &mut report, &mut seen);
+        scan(&root, "packages", &mut report, &mut seen);
+        assert_eq!(report.models_bytes, 5); assert_eq!(report.packages_bytes, 3);
+        assert_eq!(report.files.len(), 2);
+        fs::remove_dir_all(root).unwrap();
+    }
 }
