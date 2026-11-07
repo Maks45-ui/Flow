@@ -1,11 +1,13 @@
 mod civitai;
 mod discord;
 mod gallery;
+mod generation;
 mod installer;
 mod paths;
 mod maintenance;
 mod managed_tools;
 mod model_manager;
+mod workspace;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -549,6 +551,7 @@ pub fn run() {
             get_webui_settings,
             save_webui_settings,
             gallery::list_gallery_images,
+            generation::get_generation_progress,
             gallery::get_gallery_image_details,
             gallery::copy_gallery_image,
             gallery::delete_gallery_images,
@@ -577,6 +580,12 @@ pub fn run() {
             civitai::delete_download,
             model_manager::list_installed_models,
             model_manager::delete_installed_model,
+            model_manager::inspect_model_import,
+            model_manager::import_model_file,
+            workspace::get_model_profiles,
+            workspace::save_model_profile,
+            workspace::generate_with_profile,
+            workspace::get_storage_report,
             civitai::get_preview
         ])
         .run(tauri::generate_context!())
