@@ -891,6 +891,12 @@ pub(crate) fn launch_web_ui(app: AppHandle, webui: State<'_, WebuiControl>, inst
     let python = venv_python(&directory);
     if !python.is_file() { return Err("Виртуальное окружение WebUI не найдено.".to_owned()); }
     let mut arguments = parse_webui_arguments(&crate::webui_arguments(&app)?)?;
+    // Flow's local progress and model status need the API. Do not expose it implicitly
+    // when the user enabled remote access or sharing.
+    if !arguments.iter().any(|arg| arg == "--api")
+        && !arguments.iter().any(|arg| matches!(arg.as_str(), "--listen" | "--share")) {
+        arguments.push("--api".to_owned());
+    }
     let library = crate::models_library_dir(&app)?;
     let checkpoints = library.join("Stable-diffusion");
     fs::create_dir_all(&checkpoints).map_err(|error| format!("Не удалось подготовить общую библиотеку моделей: {error}"))?;
@@ -910,6 +916,7 @@ pub(crate) fn launch_web_ui(app: AppHandle, webui: State<'_, WebuiControl>, inst
         arguments.push(checkpoints.to_string_lossy().into_owned());
     }
     let detected_vram = nvidia_vram_mib();
+    if !forge { crate::workspace::apply_profile_memory(&app, &directory, &mut arguments)?; }
     let memory_profile = !forge && apply_memory_flags(&mut arguments, crate::sdxl_memory_profile(&app)?, detected_vram);
     if memory_profile {
         if arguments.iter().any(|arg| matches!(arg.as_str(), "--disable-extra-extensions" | "--disable-all-extensions")) {
