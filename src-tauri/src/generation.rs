@@ -48,7 +48,11 @@ fn parse_progress(value: &Value) -> GenerationProgress {
 }
 
 #[tauri::command]
-pub(crate) async fn get_generation_progress(webui: State<'_, WebuiControl>) -> GenerationProgress {
+pub(crate) async fn get_generation_progress(webui: State<'_, WebuiControl>) -> Result<GenerationProgress, String> {
+    Ok(fetch_progress(&webui).await)
+}
+
+async fn fetch_progress(webui: &WebuiControl) -> GenerationProgress {
     let Some(base) = webui.ready_url() else {
         return GenerationProgress::idle(false, "Запустите WebUI для просмотра прогресса");
     };
