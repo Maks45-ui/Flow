@@ -460,6 +460,11 @@ fn open_civitai_site(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn open_discord_server(app: AppHandle) -> Result<(), String> {
+    app.opener().open_url("https://discord.gg/2TdJTDtsA8", None::<&str>).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn open_diagnostic_source(app: AppHandle, url: String) -> Result<(), String> {
     const SOURCES: &[&str] = &[
         "https://docs.pytorch.org/docs/stable/notes/cuda.html#memory-management",
@@ -545,6 +550,7 @@ pub fn run() {
             save_onboarding_token,
             finish_onboarding,
             open_civitai_site,
+            open_discord_server,
             open_diagnostic_source,
             get_webui_arguments,
             save_webui_arguments,
