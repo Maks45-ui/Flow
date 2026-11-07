@@ -1257,6 +1257,9 @@ document.querySelectorAll<HTMLButtonElement>(".nav-item").forEach((button) => {
   });
 });
 const menuToggle = element<HTMLButtonElement>("menu-toggle");
+element<HTMLButtonElement>("open-discord-server").addEventListener("click", () => {
+  void window.flow.openDiscordServer().catch((error: unknown) => notify(message(error)));
+});
 let sidebarAnimating = false;
 let sidebarAnimationTimer: number | undefined;
 
