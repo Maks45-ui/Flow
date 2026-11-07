@@ -27,10 +27,12 @@ fn parse_progress(value: &Value) -> GenerationProgress {
     if jobs == 0 { return GenerationProgress::idle(true, "Генерация не выполняется"); }
     let fraction = value["progress"].as_f64().unwrap_or(0.0).clamp(0.0, 1.0);
     let preview = value["current_image"].as_str().and_then(|image| {
-        let raw = image.strip_prefix("data:image/png;base64,").unwrap_or(image);
+        let raw = ["data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,"]
+            .iter().find_map(|prefix| image.strip_prefix(prefix)).unwrap_or(image);
+        let mime = if raw.starts_with("/9j/") { "jpeg" } else if raw.starts_with("UklGR") { "webp" } else { "png" };
         (raw.len() <= 2_000_000 && !raw.is_empty()
             && raw.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'=')))
-            .then(|| format!("data:image/png;base64,{raw}"))
+            .then(|| format!("data:image/{mime};base64,{raw}"))
     });
     GenerationProgress {
         available: true,
