@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/src/concepts.css" />
   <link rel="stylesheet" href="/src/boykisser.css" />
   <link rel="stylesheet" href="/src/error-help.css" />
+  <link rel="stylesheet" href="/src/language.css" />
 </head>
 <body>
   <div class="splash-screen" id="splash-screen" role="status" aria-label="Запуск Flow">
@@ -115,7 +116,7 @@
               <section class="theme-group" aria-labelledby="theme-extra-title"><div class="theme-group-heading"><h3 id="theme-extra-title">Дополнительные</h3><p>Атмосферные палитры для рабочего пространства</p></div><div class="theme-options" id="theme-extra"></div></section>
               <section class="theme-group" aria-labelledby="theme-custom-title"><div class="theme-group-heading"><h3 id="theme-custom-title">Кастомные</h3><p>Темы с собственными обоями и звуками</p></div><div class="theme-options" id="theme-custom"></div></section>
             </div>
-            <div class="setting-row"><div><h2>Язык</h2><p>Язык интерфейса</p></div><span class="setting-value">Русский</span></div>
+            <div class="setting-row"><div><h2>Язык</h2><p>Язык интерфейса</p></div><select class="language-select" id="language-select" aria-label="Язык интерфейса"><option value="ru" lang="ru" translate="no">Русский</option><option value="en" lang="en" translate="no">English</option></select></div>
             <div class="setting-row installation-row"><div><h2>Папка установки Stable Diffusion</h2><p>Flow создаст в выбранной папке каталог sd-webui.</p></div></div>
             <div class="path-control"><input id="install-dir-settings" type="text" readonly aria-label="Папка установки Stable Diffusion" placeholder="Загрузка пути…" /><button id="browse-install-settings" class="secondary-button" type="button">Обзор...</button></div>
             <div class="setting-row token-row"><div><h2>Ключ Civitai API</h2><p>Хранится только на этом устройстве. Нужен для закрытых моделей и загрузок.</p></div><span class="setting-value" id="token-state">Не задан</span></div>
@@ -187,6 +188,13 @@
     <section class="diagnostic-report-section" aria-labelledby="error-help-report-title"><h3 id="error-help-report-title">Отчёт для поддержки</h3><p>Токены и личные пути скрываются по шаблонам. В логах могут остаться имена моделей и другой личный текст — проверьте и отредактируйте отчёт перед передачей.</p><label class="diagnostic-report-label" for="error-help-report">Предпросмотр отчёта — текст можно изменить</label><textarea class="diagnostic-report" id="error-help-report" spellcheck="false" disabled></textarea></section>
     <p class="diagnostic-status" id="error-help-status" role="status" aria-live="polite"></p>
     <div class="diagnostic-footer"><button class="secondary-button" id="dismiss-error-help" type="button">Закрыть</button><button class="primary-button" id="copy-error-report" type="button" disabled>Скопировать отчёт</button></div>
+  </dialog>
+  <dialog id="language-dialog" class="modal glass-surface language-dialog" aria-labelledby="language-title" aria-describedby="language-description" translate="no">
+    <img data-flow-logo src="/assets/logo.png" alt="Flow" width="48" height="48" />
+    <h2 id="language-title">Выбор языка / Language</h2>
+    <p id="language-description">Выберите язык интерфейса.<br />Choose your interface language.</p>
+    <div class="language-options"><button class="secondary-button" type="button" data-language="ru" lang="ru">Русский</button><button class="secondary-button" type="button" data-language="en" lang="en">English</button></div>
+    <p class="language-error" role="alert"></p>
   </dialog>
   <script src="/src/renderer.ts" type="module"></script>
 </body>

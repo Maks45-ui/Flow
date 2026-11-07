@@ -1,3 +1,4 @@
+import { getLocale } from "./i18n";
 import type { FlowAPI, InstalledModel } from "./types";
 
 function required<T extends HTMLElement>(root: ParentNode, selector: string): T {
@@ -13,7 +14,7 @@ function errorMessage(error: unknown): string {
 function fileSize(bytes: number): string {
   const gib = 1024 ** 3;
   const mib = 1024 ** 2;
-  const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 });
+  const number = new Intl.NumberFormat(getLocale(), { maximumFractionDigits: 1 });
   return bytes >= gib ? `${number.format(bytes / gib)} ГБ` : `${number.format(bytes / mib)} МБ`;
 }
 
@@ -72,8 +73,8 @@ export class ModelManager {
   }
 
   private render(): void {
-    const query = this.search.value.trim().toLocaleLowerCase("ru-RU");
-    const visible = this.models.filter((model) => model.name.toLocaleLowerCase("ru-RU").includes(query));
+    const query = this.search.value.trim().toLocaleLowerCase(getLocale());
+    const visible = this.models.filter((model) => model.name.toLocaleLowerCase(getLocale()).includes(query));
     this.count.textContent = query ? `${visible.length} из ${this.models.length}` : `${this.models.length} моделей`;
     this.list.replaceChildren();
     this.status.textContent = visible.length ? "" : query ? "По запросу ничего не найдено." : "Моделей пока нет. Скачайте их в каталоге Civitai.";

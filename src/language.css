@@ -1,0 +1,9 @@
+.language-select { min-width: 150px; padding: 9px 12px; color: var(--text-primary); background: var(--surface); border: 1px solid var(--border-subtle); border-radius: 10px; font: inherit; }
+.language-dialog { width: min(440px, calc(100vw - 40px)); padding: 28px; }
+.language-dialog h2 { margin: 14px 0 8px; font-size: 22px; }
+.language-dialog p { color: var(--text-muted); line-height: 1.6; }
+.language-dialog::backdrop { background: rgba(0, 0, 0, .55); backdrop-filter: blur(8px); }
+.language-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 24px; }
+.language-options button { min-height: 64px; font-size: 16px; }
+.language-options button:focus-visible, .language-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.language-error { color: var(--danger, #e06464); }
