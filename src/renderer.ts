@@ -1,4 +1,5 @@
 import { flowApi } from "./bridge";
+import { initializeLanguage, translate, getLocale } from "./i18n";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -9,6 +10,7 @@ import { FirstRunController } from "./onboarding";
 import { ThemeController } from "./theme";
 import type { AppState, CheckReport, GalleryImage, ModelSummary, PackageInfo, Page, TaskEvent } from "./types";
 
+initializeLanguage();
 window.flow = flowApi;
 
 function element<T extends HTMLElement>(id: string): T {
@@ -130,6 +132,7 @@ const vramFlags = new Set(["--lowvram", "--medvram", "--medvram-sdxl"]);
 const pendingLogs = new Map<HTMLElement, string>();
 
 function queueLog(target: HTMLElement, message: string): void {
+  target.setAttribute("translate", "no");
   const line = message.replace(/\r/g, "").trimEnd();
   if (!line) return;
   pendingLogs.set(target, ((pendingLogs.get(target) ?? "") + line + "\n").slice(-100_000));
@@ -801,7 +804,7 @@ function renderHomeRecent(images: GalleryImage[]): void {
     const caption = make("span", "home-recent-caption");
     const dimensions = make("span", "", "—");
     image.addEventListener("load", () => { dimensions.textContent = `${image.naturalWidth} × ${image.naturalHeight}`; });
-    const age = make("small", "", item.modifiedAt ? new Date(item.modifiedAt).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+    const age = make("small", "", item.modifiedAt ? new Date(item.modifiedAt).toLocaleString(getLocale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
     caption.append(dimensions, age);
     button.append(image, caption);
     button.addEventListener("click", () => showGalleryImage(item));
@@ -855,7 +858,7 @@ function inspectGalleryImage(item: GalleryImage | null): void {
   }
   element<HTMLElement>("inspector-file-name").textContent = item?.fileName ?? "—";
   element<HTMLElement>("inspector-file-kind").textContent = item?.kind ?? "—";
-  element<HTMLElement>("inspector-file-date").textContent = item?.modifiedAt ? new Date(item.modifiedAt).toLocaleString("ru-RU") : "—";
+  element<HTMLElement>("inspector-file-date").textContent = item?.modifiedAt ? new Date(item.modifiedAt).toLocaleString(getLocale()) : "—";
   element<HTMLElement>("inspector-file-path").textContent = item?.path ?? "—";
   galleryGrid.querySelectorAll<HTMLElement>(".gallery-card").forEach((card) => card.classList.toggle("inspected", item !== null && card.dataset.path === item.path));
   if (!item) { inspectorImage.removeAttribute("src"); return; }
@@ -881,14 +884,14 @@ function inspectGalleryImage(item: GalleryImage | null): void {
 }
 
 function renderGalleryFiltered(): void {
-  const query = gallerySearch.value.trim().toLocaleLowerCase("ru-RU");
+  const query = gallerySearch.value.trim().toLocaleLowerCase(getLocale());
   const images = galleryItems.filter((item) =>
     (!showOnlyFavorites || galleryFavorites.has(item.path))
     && (galleryKind === "all" || item.kind === galleryKind)
     && (!query || [item.fileName, item.model, item.prompt, item.seed,
-      item.modifiedAt ? new Date(item.modifiedAt).toLocaleDateString("ru-RU") : "",
+      item.modifiedAt ? new Date(item.modifiedAt).toLocaleDateString(getLocale()) : "",
       item.modifiedAt ? new Date(item.modifiedAt).toISOString().slice(0, 10) : ""]
-      .some((value) => value?.toLocaleLowerCase("ru-RU").includes(query))));
+      .some((value) => value?.toLocaleLowerCase(getLocale()).includes(query))));
   const fragment = document.createDocumentFragment();
   for (const image of images) fragment.append(renderGalleryImage(image));
   galleryGrid.replaceChildren(fragment);
@@ -995,7 +998,7 @@ function renderGalleryImage(item: GalleryImage): HTMLElement {
   caption.append(
     make("span", "gallery-kind", item.kind === "txt2img" ? "txt2img" : "img2img"),
     make("span", "gallery-file-name", item.fileName),
-    make("span", "gallery-date", item.modifiedAt ? new Date(item.modifiedAt).toLocaleDateString("ru-RU") : "")
+    make("span", "gallery-date", item.modifiedAt ? new Date(item.modifiedAt).toLocaleDateString(getLocale()) : "")
   );
   const selection = make("span", "gallery-selection", "✓");
   selection.setAttribute("aria-hidden", "true");
@@ -1075,6 +1078,7 @@ function renderModel(model: ModelSummary): HTMLElement {
   const body = make("div", "model-body");
   const head = make("div", "model-head");
   const title = make("h2", "", model.name);
+  title.setAttribute("translate", "no");
   const sizeLabel = make("span", "model-file-size");
   head.append(title, sizeLabel);
   const tags = make("div", "model-tags");
@@ -1087,13 +1091,14 @@ function renderModel(model: ModelSummary): HTMLElement {
     .replace(/&#39;|&apos;/gi, "'").replace(/\s+/g, " ").trim();
   const description = make("p", "model-description", plainDescription.slice(0, 360)
     || `Модель ${model.type}. Просмотрите примеры и выберите файл для загрузки.`);
+  if (plainDescription) description.setAttribute("translate", "no");
   const metadata = make("div", "model-metadata");
-  if (model.downloadCount !== null) metadata.append(make("span", "", `↓ ${new Intl.NumberFormat("ru-RU", { notation: "compact" }).format(model.downloadCount)}`));
-  if (model.favoriteCount !== null) metadata.append(make("span", "", `♡ ${new Intl.NumberFormat("ru-RU", { notation: "compact" }).format(model.favoriteCount)}`));
+  if (model.downloadCount !== null) metadata.append(make("span", "", `↓ ${new Intl.NumberFormat(getLocale(), { notation: "compact" }).format(model.downloadCount)}`));
+  if (model.favoriteCount !== null) metadata.append(make("span", "", `♡ ${new Intl.NumberFormat(getLocale(), { notation: "compact" }).format(model.favoriteCount)}`));
   if (model.creator) metadata.append(make("span", "", `♙ ${model.creator}`));
   if (model.updatedAt) {
     const date = new Date(model.updatedAt);
-    if (!Number.isNaN(date.getTime())) metadata.append(make("span", "", `▣ ${date.toLocaleDateString("ru-RU")}`));
+    if (!Number.isNaN(date.getTime())) metadata.append(make("span", "", `▣ ${date.toLocaleDateString(getLocale())}`));
   }
   body.append(head, tags, description, metadata);
   const footer = make("div", "model-footer");
@@ -1174,9 +1179,9 @@ function onTask(event: TaskEvent): void {
   if (["starting", "cloning", "dependencies", "ready", "done", "error", "cancelled"].includes(event.phase)) {
     const entry = make("li", "", event.message.slice(0, 180));
     entry.dataset.phase = event.phase;
-    const time = make("time", "", new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }));
+    const time = make("time", "", new Date().toLocaleTimeString(getLocale(), { hour: "2-digit", minute: "2-digit" }));
     entry.prepend(time);
-    if (homeActivityList.firstElementChild?.textContent === "События установки и запуска появятся здесь.") homeActivityList.replaceChildren();
+    if (homeActivityList.firstElementChild?.textContent === translate("События установки и запуска появятся здесь.")) homeActivityList.replaceChildren();
     homeActivityList.prepend(entry);
     while (homeActivityList.children.length > 5) homeActivityList.lastElementChild?.remove();
   }

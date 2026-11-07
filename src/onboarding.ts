@@ -1,4 +1,5 @@
 import { startSplashScreen } from "./splash";
+import { chooseFirstLanguage } from "./i18n";
 import { onboardingCopy, starterCopy, starterKeys, type StarterKey } from "./onboarding-copy";
 import type { FlowAPI, ModelFile, StarterModel, TaskEvent } from "./types";
 
@@ -95,6 +96,7 @@ export class FirstRunController {
       .then((stage) => ({ stage, error: "" }))
       .catch((error: unknown) => ({ stage: 0, error: errorMessage(error) }));
     await startSplashScreen();
+    await chooseFirstLanguage();
     const result = await status;
     if (result.stage >= 3 || result.stage === 1) { this.app.inert = false; return; }
     this.dialog.showModal();
