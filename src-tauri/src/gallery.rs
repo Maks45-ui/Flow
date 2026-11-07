@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::{collections::HashSet, fs, path::{Path, PathBuf}, time::UNIX_EPOCH};
+use std::{collections::{HashMap, HashSet}, fs, path::{Path, PathBuf}, sync::{Mutex, OnceLock}, time::UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
@@ -12,6 +12,9 @@ pub(crate) struct GalleryImage {
     file_name: String,
     kind: &'static str,
     modified_at: u64,
+    model: Option<String>,
+    prompt: Option<String>,
+    seed: Option<String>,
 }
 
 fn scan_directory(directory: &Path, kind: &'static str, images: &mut Vec<GalleryImage>) -> Result<(), String> {
@@ -31,11 +34,16 @@ fn scan_directory(directory: &Path, kind: &'static str, images: &mut Vec<Gallery
             let modified_at = metadata.modified().ok()
                 .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
                 .map_or(0, |duration| duration.as_millis() as u64);
+            let details = cached_details(&path, modified_at, metadata.len());
             images.push(GalleryImage {
                 path: paths::subprocess_path(&path).to_string_lossy().into_owned(),
                 file_name: entry.file_name().to_string_lossy().into_owned(),
                 kind,
                 modified_at,
+                model: details.as_ref().and_then(|value| value.model.clone()),
+                prompt: details.as_ref().and_then(|value| value.prompt.as_deref())
+                    .map(str::to_owned),
+                seed: details.and_then(|value| value.seed),
             });
         }
     }
@@ -98,7 +106,7 @@ fn checked_image(path: &str, roots: &[PathBuf]) -> Result<PathBuf, String> {
     Ok(canonical)
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GalleryImageDetails {
     prompt: Option<String>,
@@ -108,6 +116,23 @@ pub(crate) struct GalleryImageDetails {
     sampler: Option<String>,
     model: Option<String>,
     parameters: Option<String>,
+}
+
+fn cached_details(path: &Path, modified: u64, bytes: u64) -> Option<GalleryImageDetails> {
+    type Cache = HashMap<PathBuf, (u64, u64, Option<GalleryImageDetails>)>;
+    static CACHE: OnceLock<Mutex<Cache>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    {
+        let entries = cache.lock().unwrap_or_else(|error| error.into_inner());
+        if let Some((stamp, size, details)) = entries.get(path) {
+            if *stamp == modified && *size == bytes { return details.clone(); }
+        }
+    }
+    let details = png_parameters(path).ok().flatten().map(|raw| parse_parameters(Some(raw)));
+    let mut entries = cache.lock().unwrap_or_else(|error| error.into_inner());
+    if entries.len() >= 5000 { entries.clear(); }
+    entries.insert(path.to_path_buf(), (modified, bytes, details.clone()));
+    details
 }
 
 fn parse_parameters(raw: Option<String>) -> GalleryImageDetails {

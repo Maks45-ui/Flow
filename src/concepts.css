@@ -90,6 +90,18 @@ body[data-page="home"] .content { flex: 1 1 auto; min-height: 0; overflow: hidde
 .home-activity-list li[data-phase="starting"]::before, .home-activity-list li[data-phase="cloning"]::before { background: var(--accent); }
 .home-activity-list time { flex: 0 0 42px; color: var(--text-subtle); font: 10px var(--font-mono); }
 #page-home .home-recent-panel { display: flex; flex-direction: column; min-height: 0; margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--panel); overflow: hidden; }
+#page-home .home-media-row { display: grid; grid-template-columns: minmax(220px, 29%) minmax(0, 1fr); gap: 10px; min-height: 0; }
+#page-home .generation-panel { min-width: 0; min-height: 0; padding: 10px 12px; overflow: hidden; }
+.generation-panel .panel-heading { margin: 0 0 8px; }
+.generation-panel .panel-heading h2 { font-size: 13px; }
+#generation-percent { color: var(--accent); font: 12px var(--font-mono); }
+.generation-body { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.generation-body img { width: 70px; height: 70px; flex: 0 0 70px; border-radius: 7px; object-fit: cover; }
+.generation-info { flex: 1; min-width: 0; }
+.generation-info p { margin: 0 0 8px; overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.generation-info small { display: block; margin-top: 6px; color: var(--muted); font: 10px var(--font-mono); }
+.generation-track { height: 6px; overflow: hidden; border-radius: 6px; background: var(--surface); }
+.generation-track i { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width .25s ease-out; }
 #page-home .console-panel.glass-surface { min-height: 0; margin: 0; border-radius: 12px; overflow: hidden; }
 #page-home .console-panel .console-heading { flex: 0 0 auto; margin-bottom: 8px; }
 #page-home .console-panel .console-output { flex: 1 1 auto; min-height: 0; height: auto; max-height: none; overflow: auto; }
@@ -103,6 +115,13 @@ body[data-page="home"] .content { flex: 1 1 auto; min-height: 0; overflow: hidde
 .home-recent-caption { display: flex; flex-direction: column; gap: 2px; padding: 5px 2px 0; font: 10px var(--font-mono); }
 .home-recent-caption small { color: var(--text-subtle); font-size: 10px; }
 .home-placeholder { flex: 1; align-self: center; color: var(--muted); text-align: center; font-size: 12px; }
+@media (max-width: 1120px) { #page-home .home-media-row { grid-template-columns: minmax(185px, 34%) minmax(0, 1fr); } .generation-body img { width: 54px; height: 54px; flex-basis: 54px; } }
+.compare-dialog { width: min(1200px, calc(100vw - 36px)); max-height: calc(100vh - 36px); overflow: auto; }
+.compare-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.compare-grid figure { min-width: 0; margin: 0; }
+.compare-grid img { display: block; width: 100%; height: min(65vh, 680px); border: 1px solid var(--line); border-radius: 8px; background: var(--surface); object-fit: contain; }
+.compare-grid figcaption { margin-top: 7px; overflow-wrap: anywhere; color: var(--muted); font: 11px var(--font-mono); }
+@media (max-width: 700px) { .compare-grid { grid-template-columns: 1fr; } .compare-grid img { height: 36vh; } }
 
 /* 2 · Library. The reference is light; semantic tokens recolor it in every theme. */
 body[data-page="models"] .topbar-brand, body[data-page="models"] .runtime-cell:not(.runtime-package) { display: none; }
@@ -251,6 +270,19 @@ body[data-page="gallery"] .content { padding: 10px 14px 14px; }
 .managed-model-remove:hover { border-color: var(--danger); color: var(--danger); }
 .managed-model-delete-dialog { width: min(440px, calc(100% - 36px)); }
 .managed-model-delete-dialog .managed-model-delete-error { color: var(--danger); }
+.workspace-tools { display: grid; gap: 14px; margin-top: 14px; }
+.workspace-tools .panel { padding: 16px; }
+.workspace-tools .panel-heading { margin-bottom: 12px; }
+.workspace-tools h2 { font-size: 14px; }
+.tool-note { color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.workspace-tools label, #model-import-dialog label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; }
+.workspace-tools input, .workspace-tools select, .workspace-tools textarea, #model-import-dialog select { width: 100%; min-width: 0; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font: 12px var(--font-ui); }
+.profile-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.profile-prompt { margin: 15px 0 10px; }
+.storage-row { display: grid; grid-template-columns: 180px 1fr; align-items: center; gap: 12px; margin: 12px 0; font-size: 12px; }
+.storage-file { padding: 10px 0; border-bottom: 1px solid var(--line); color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; font: 11px/1.6 var(--font-mono); }
+.model-dragging .main::after { content: "Отпустите файлы для импорта моделей"; position: fixed; inset: 60px 20px 20px 240px; z-index: 100; display: grid; place-items: center; border: 2px dashed var(--accent); border-radius: 12px; background: var(--panel); color: var(--accent); pointer-events: none; }
+@media (max-width: 900px) { .profile-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 @media (max-width: 1390px) {
   .topbar { padding: 0 12px; gap: 6px; }

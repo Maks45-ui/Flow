@@ -4,6 +4,7 @@ import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { DownloadManager } from "./download-manager";
 import { ModelManager } from "./model-manager";
+import { WorkspaceTools } from "./workspace-tools";
 import { FirstRunController } from "./onboarding";
 import { ThemeController } from "./theme";
 import type { AppState, CheckReport, GalleryImage, ModelSummary, PackageInfo, Page, TaskEvent } from "./types";
@@ -45,6 +46,7 @@ const galleryCount = element<HTMLElement>("gallery-count");
 const galleryRefresh = element<HTMLButtonElement>("refresh-gallery");
 const gallerySelect = element<HTMLButtonElement>("select-gallery");
 const galleryDelete = element<HTMLButtonElement>("delete-gallery");
+const galleryCompare = element<HTMLButtonElement>("compare-gallery");
 const gallerySelectedCount = element<HTMLElement>("gallery-selected-count");
 const galleryContextMenu = element<HTMLElement>("gallery-context-menu");
 const galleryDeleteDialog = element<HTMLDialogElement>("gallery-delete-dialog");
@@ -68,6 +70,7 @@ const modelManager = new ModelManager(
   notify,
   () => { void downloadManager.restore().catch((error: unknown) => notify(message(error))); }
 );
+const workspaceTools = new WorkspaceTools(flowApi, () => { void modelManager.refresh(); }, notify);
 new ThemeController(
   element<HTMLElement>("theme-standard"),
   element<HTMLElement>("theme-extra"),
@@ -438,7 +441,7 @@ function showPage(page: Page): void {
     hasLoadedCatalog = true;
     void searchModels();
   }
-  if (page === "manage-models") void modelManager.refresh();
+  if (page === "manage-models") { void modelManager.refresh(); void workspaceTools.refresh(); }
   if (page === "gallery") void refreshGallery();
   else hideGalleryContextMenu();
   if (page === "home") void refreshHomeRecent();
@@ -640,6 +643,30 @@ async function refreshState(): Promise<void> {
 }
 
 let runtimeSequence = 0;
+let progressRequestPending = false;
+
+async function refreshGenerationProgress(): Promise<void> {
+  if (progressRequestPending || document.body.dataset.page !== "home" || document.visibilityState !== "visible") return;
+  progressRequestPending = true;
+  try {
+    const progress = await window.flow.getGenerationProgress();
+    const image = element<HTMLImageElement>("generation-preview");
+    element<HTMLElement>("generation-label").textContent = progress.label;
+    element<HTMLElement>("generation-percent").textContent = progress.active ? `${progress.percent}%` : "—";
+    element<HTMLElement>("generation-eta").textContent = progress.active && progress.etaSeconds !== null
+      ? `Осталось ≈ ${Math.floor(progress.etaSeconds / 60)} мин ${progress.etaSeconds % 60} с`
+      : progress.available ? "Ожидание" : "API недоступен";
+    element<HTMLElement>("generation-fill").style.width = `${progress.active ? progress.percent : 0}%`;
+    element<HTMLElement>("generation-track").setAttribute("aria-valuenow", String(progress.active ? progress.percent : 0));
+    image.hidden = !progress.active || !progress.preview;
+    if (!image.hidden && progress.preview && image.src !== progress.preview) image.src = progress.preview;
+    if (image.hidden) image.removeAttribute("src");
+  } catch {
+    element<HTMLElement>("generation-label").textContent = "Не удалось получить прогресс WebUI";
+  } finally {
+    progressRequestPending = false;
+  }
+}
 
 async function refreshWebUIStatus(): Promise<void> {
   const sequence = ++runtimeSequence;
@@ -858,7 +885,10 @@ function renderGalleryFiltered(): void {
   const images = galleryItems.filter((item) =>
     (!showOnlyFavorites || galleryFavorites.has(item.path))
     && (galleryKind === "all" || item.kind === galleryKind)
-    && (!query || item.fileName.toLocaleLowerCase("ru-RU").includes(query)));
+    && (!query || [item.fileName, item.model, item.prompt, item.seed,
+      item.modifiedAt ? new Date(item.modifiedAt).toLocaleDateString("ru-RU") : "",
+      item.modifiedAt ? new Date(item.modifiedAt).toISOString().slice(0, 10) : ""]
+      .some((value) => value?.toLocaleLowerCase("ru-RU").includes(query))));
   const fragment = document.createDocumentFragment();
   for (const image of images) fragment.append(renderGalleryImage(image));
   galleryGrid.replaceChildren(fragment);
@@ -908,6 +938,8 @@ function updateGallerySelection(): void {
   galleryGrid.classList.toggle("selecting", gallerySelectMode);
   gallerySelect.textContent = gallerySelectMode ? "Отмена" : "Выбрать";
   galleryDelete.hidden = !gallerySelectMode;
+  galleryCompare.hidden = !gallerySelectMode;
+  galleryCompare.disabled = selectedGalleryPaths.size !== 2;
   galleryDelete.disabled = selectedGalleryPaths.size === 0;
   galleryDelete.textContent = "Удалить" + (selectedGalleryPaths.size ? " (" + selectedGalleryPaths.size + ")" : "");
   gallerySelectedCount.hidden = !gallerySelectMode;
@@ -1423,6 +1455,21 @@ element<HTMLButtonElement>("favorite-gallery-image").addEventListener("click", (
   if (item) toggleGalleryFavorite(item);
 });
 gallerySelect.addEventListener("click", () => setGallerySelectMode(!gallerySelectMode));
+galleryCompare.addEventListener("click", () => {
+  if (selectedGalleryPaths.size !== 2) return;
+  const images = [...selectedGalleryPaths].map((path) => galleryItems.find((item) => item.path === path));
+  if (!images[0] || !images[1]) return;
+  for (const [index, side] of ["left", "right"].entries()) {
+    const image = images[index];
+    if (!image) continue;
+    element<HTMLImageElement>(`compare-image-${side}`).src = convertFileSrc(image.path);
+    element<HTMLElement>(`compare-caption-${side}`).textContent =
+      `${image.fileName}${image.model ? ` · ${image.model}` : ""}`;
+  }
+  element<HTMLDialogElement>("compare-gallery-dialog").showModal();
+});
+element<HTMLButtonElement>("close-gallery-compare").addEventListener("click", () =>
+  element<HTMLDialogElement>("compare-gallery-dialog").close());
 galleryDelete.addEventListener("click", () => {
   if (selectedGalleryPaths.size === 0) return;
   pendingGalleryDeletePaths = [...selectedGalleryPaths];
@@ -1592,6 +1639,7 @@ const firstRun = new FirstRunController(
 void firstRun.start().catch((error: unknown) => notify(message(error)));
 void refreshState();
 void refreshHomeRecent();
+void refreshGenerationProgress();
 document.body.dataset.page = "home";
 window.setInterval(updateHomeUptime, 1_000);
 window.setInterval(() => { if (document.visibilityState === "visible") void refreshWebUIStatus(); }, 15_000);
@@ -1600,10 +1648,12 @@ window.setInterval(() => {
     void refreshHomeRecent();
   }
 }, 4_000);
+window.setInterval(() => { void refreshGenerationProgress(); }, 3_000);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible") return;
   void refreshWebUIStatus();
   if (document.body.dataset.page === "home") void refreshHomeRecent();
+  void refreshGenerationProgress();
 });
 void downloadManager.restore().catch((error: unknown) => notify(message(error)));
 void window.flow.setPage("home").catch(() => { /* Discord may be unavailable. */ });

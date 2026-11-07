@@ -52,11 +52,23 @@ export interface WebUIStatus {
   activeModel: string | null;
 }
 
+export interface GenerationProgress {
+  available: boolean;
+  active: boolean;
+  percent: number;
+  etaSeconds: number | null;
+  preview: string | null;
+  label: string;
+}
+
 export interface GalleryImage {
   path: string;
   fileName: string;
   kind: "txt2img" | "img2img";
   modifiedAt: number;
+  model: string | null;
+  prompt: string | null;
+  seed: string | null;
 }
 
 export interface GalleryImageDetails {
@@ -131,10 +143,40 @@ export interface WebUISettings {
   sdxlMemoryProfile: boolean;
 }
 
+export interface ModelImportPreview {
+  name: string;
+  sizeBytes: number;
+  suggestedType: string;
+  destinations: { modelType: string; path: string; duplicate: boolean }[];
+}
+export interface ModelProfile {
+  model: string;
+  family: "sd15" | "sdxl";
+  width: number;
+  height: number;
+  sampler: string;
+  vae: string;
+  memory: "auto" | "lowvram" | "medvram-sdxl";
+}
+export interface StorageReport {
+  modelsBytes: number;
+  outputsBytes: number;
+  packagesBytes: number;
+  skipped: number;
+  files: { path: string; name: string; sizeBytes: number; category: "models" | "outputs" | "packages" }[];
+}
 export interface FlowAPI {
+  inspectModelImport(path: string): Promise<ModelImportPreview>;
+  importModelFile(path: string, modelType: string): Promise<string>;
+  browseModelFiles(): Promise<string[]>;
+  getModelProfiles(): Promise<ModelProfile[]>;
+  saveModelProfile(profile: ModelProfile): Promise<void>;
+  generateWithProfile(model: string, prompt: string): Promise<void>;
+  getStorageReport(): Promise<StorageReport>;
   openDiagnosticSource(url: string): Promise<void>;
   getState(): Promise<AppState>;
   getWebUIStatus(): Promise<WebUIStatus>;
+  getGenerationProgress(): Promise<GenerationProgress>;
   installForgeNeo(installationDir: string): Promise<void>;
   browseInstallationDirectory(currentPath: string): Promise<string | null>;
   saveInstallationDirectory(directory: string): Promise<void>;
