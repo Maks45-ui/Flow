@@ -37,7 +37,20 @@
 }
 .modal.glass-surface[open] { animation: dialog-in .18s ease-out both; }
 .modal::backdrop { background: var(--overlay); -webkit-backdrop-filter: none; backdrop-filter: none; }
-.toast.glass-surface { background: var(--panel); color: var(--text); }
+/* Keep the toast anchored to the window, above the shared glass material. */
+.toast.glass-surface {
+  position: fixed;
+  top: auto;
+  left: auto;
+  right: max(22px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  max-width: min(380px, calc(100vw - 44px));
+  overflow-wrap: anywhere;
+  z-index: 100;
+  background: var(--panel);
+  color: var(--text);
+  transition: opacity .2s ease-out, transform .2s ease-out;
+}
 
 @keyframes dialog-in {
   from { opacity: 0; transform: translateY(6px); }
