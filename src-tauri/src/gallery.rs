@@ -42,7 +42,7 @@ fn scan_directory(directory: &Path, kind: &'static str, images: &mut Vec<Gallery
                 modified_at,
                 model: details.as_ref().and_then(|value| value.model.clone()),
                 prompt: details.as_ref().and_then(|value| value.prompt.as_deref())
-                    .map(|value| value.chars().take(500).collect()),
+                    .map(str::to_owned),
                 seed: details.and_then(|value| value.seed),
             });
         }
