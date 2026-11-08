@@ -8,6 +8,7 @@ use crate::installer::WebuiControl;
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GenerationProgress {
+    indeterminate: bool,
     #[serde(skip)]
     job_id: Option<String>,
     #[serde(skip)]
@@ -24,7 +25,7 @@ pub(crate) struct GenerationProgress {
 
 impl GenerationProgress {
     fn idle(available: bool, label: &str) -> Self {
-        Self { job_id: None, completed_jobs: 0, interrupted: false,
+        Self { indeterminate: false, job_id: None, completed_jobs: 0, interrupted: false,
             available, active: false, percent: 0, eta_seconds: None,
             preview: None, label: label.to_owned() }
     }
@@ -75,6 +76,15 @@ async fn fetch_progress(webui: &WebuiControl) -> GenerationProgress {
     let Ok(client) = reqwest::Client::builder().timeout(std::time::Duration::from_secs(3)).build() else {
         return GenerationProgress::idle(false, "Прогресс WebUI недоступен");
     };
+    if webui.package_id().as_deref() == Some("comfyui") {
+        let queue = match client.get(format!("{base}/queue")).send().await {
+            Ok(response) => match response.error_for_status() {
+                Ok(response) => response.json::<Value>().await.ok(), Err(_) => None,
+            }, Err(_) => None,
+        };
+        let Some(queue) = queue else { return GenerationProgress::idle(false, "Нет связи с API ComfyUI"); };
+        return parse_comfy_progress(&queue, None);
+    }
     match client.get(format!("{base}/sdapi/v1/progress"))
         .query(&[("skip_current_image", "false")]).send().await {
         Ok(response) => match response.error_for_status() {
@@ -86,6 +96,25 @@ async fn fetch_progress(webui: &WebuiControl) -> GenerationProgress {
         },
         Err(_) => GenerationProgress::idle(false, "Нет связи с API WebUI"),
     }
+}
+
+fn parse_comfy_progress(queue: &Value, history: Option<&Value>) -> GenerationProgress {
+    let mut result = GenerationProgress::idle(true, "Генерация не выполняется");
+    if let Some(job) = queue["queue_running"].as_array().and_then(|jobs| jobs.first()) {
+        result.active = true;
+        result.indeterminate = true;
+        result.job_id = job[1].as_str().map(str::to_owned);
+        result.label = "Выполняется workflow ComfyUI".into();
+    } else if let Some((id, job)) = history.and_then(Value::as_object).and_then(|items| items.iter().next()) {
+        result.job_id = Some(id.clone());
+        let successful = job["status"]["completed"].as_bool() == Some(true)
+            && job["status"]["status_str"].as_str() == Some("success");
+        let has_images = job["outputs"].as_object().is_some_and(|outputs| outputs.values()
+            .any(|node| node["images"].as_array().is_some_and(|images| !images.is_empty())));
+        result.completed_jobs = u64::from(successful && has_images);
+        result.interrupted = !successful;
+    }
+    result
 }
 
 #[derive(Default)]
@@ -124,10 +153,24 @@ pub(crate) fn start_notification_monitor(app: AppHandle) {
             };
             if previous_url.as_ref() != Some(&url) { tracker = CompletionTracker::default(); }
             previous_url = Some(url.clone());
-            let progress = client.get(format!("{url}/sdapi/v1/progress"))
-                .query(&[("skip_current_image", "true")]).send()
-                .and_then(reqwest::blocking::Response::error_for_status)
-                .and_then(|response| response.json::<Value>()).map(|value| parse_progress(&value));
+            let progress = if webui.package_id().as_deref() == Some("comfyui") {
+                client.get(format!("{url}/queue")).send()
+                    .and_then(reqwest::blocking::Response::error_for_status)
+                    .and_then(|response| response.json::<Value>()).and_then(|queue| {
+                        if queue["queue_running"].as_array().is_some_and(|jobs| !jobs.is_empty()) {
+                            return Ok(parse_comfy_progress(&queue, None));
+                        }
+                        client.get(format!("{url}/history")).query(&[("max_items", "1")]).send()
+                            .and_then(reqwest::blocking::Response::error_for_status)
+                            .and_then(|response| response.json::<Value>())
+                            .map(|history| parse_comfy_progress(&queue, Some(&history)))
+                    })
+            } else {
+                client.get(format!("{url}/sdapi/v1/progress"))
+                    .query(&[("skip_current_image", "true")]).send()
+                    .and_then(reqwest::blocking::Response::error_for_status)
+                    .and_then(|response| response.json::<Value>()).map(|value| parse_progress(&value))
+            };
             let Ok(progress) = progress else { tracker = CompletionTracker::default(); continue; };
             if webui.is_stopping() || webui.ready_url().as_ref() != Some(&url) {
                 tracker = CompletionTracker::default(); continue;
@@ -150,6 +193,22 @@ pub(crate) fn start_notification_monitor(app: AppHandle) {
 mod tests {
     use super::{parse_progress, CompletionTracker};
     use serde_json::json;
+
+    #[test]
+    fn comfy_completion_requires_successful_image_output_and_deduplicates() {
+        let active = super::parse_comfy_progress(&json!({"queue_running": [[1, "job-1"]]}), None);
+        assert!(active.active);
+        assert!(active.indeterminate);
+        let history = json!({"job-1": {"status": {"completed": true, "status_str": "success"},
+            "outputs": {"9": {"images": [{"filename":"test.png"}]}}}});
+        let finished = super::parse_comfy_progress(&json!({"queue_running": []}), Some(&history));
+        let mut tracker = CompletionTracker::default();
+        assert!(!tracker.observe(&active));
+        assert!(tracker.observe(&finished));
+        assert!(!tracker.observe(&finished));
+        let error = json!({"job-2": {"status": {"completed": false, "status_str": "error"}, "outputs": {}}});
+        assert_eq!(super::parse_comfy_progress(&json!({"queue_running": []}), Some(&error)).completed_jobs, 0);
+    }
 
     fn snapshot(active: bool, id: &str, completed: u64, interrupted: bool) -> super::GenerationProgress {
         parse_progress(&json!({"state": {"job_count": if active { 1 } else { 0 },

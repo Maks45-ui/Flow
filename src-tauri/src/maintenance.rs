@@ -82,7 +82,7 @@ fn environment_checks(app: &AppHandle, parent: &Path, package_id: &str) -> Vec<C
     let git = installer::command_output(app, "git", &["--version".to_owned()]);
     match git {
         Ok(version) => checks.push(entry("Git", version, "ok")),
-        Err(_) if package_id == "forge-neo" && cfg!(windows) => checks.push(entry("Git", "Flow скачает проверенную копию Git при установке", "info")),
+        Err(_) if matches!(package_id, "forge-neo" | "comfyui") && cfg!(windows) => checks.push(entry("Git", "Flow скачает проверенную копию Git при установке", "info")),
         Err(_) => checks.push(entry("Git", "Не найден — установка невозможна", "error")),
     }
     if package_id == "automatic1111" {
@@ -121,7 +121,7 @@ fn environment_checks(app: &AppHandle, parent: &Path, package_id: &str) -> Vec<C
 
 #[tauri::command]
 pub(crate) async fn get_preflight(app: AppHandle, package_id: String) -> Result<CheckReport, String> {
-    if package_id != "automatic1111" && package_id != "forge-neo" { return Err("Неизвестный пакет.".to_owned()); }
+    if !matches!(package_id.as_str(), "automatic1111" | "forge-neo" | "comfyui") { return Err("Неизвестный пакет.".to_owned()); }
     tauri::async_runtime::spawn_blocking(move || {
         let parent = installation_dir(&app)?;
         let checks = environment_checks(&app, &parent, &package_id);

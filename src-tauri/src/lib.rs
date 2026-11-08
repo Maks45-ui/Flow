@@ -2,6 +2,7 @@ mod civitai;
 mod discord;
 mod gallery;
 mod generation;
+mod comfy;
 mod installer;
 mod paths;
 mod maintenance;
@@ -18,6 +19,10 @@ use tauri_plugin_opener::OpenerExt;
 #[derive(Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Settings {
+    #[serde(default)]
+    comfyui_dir: Option<String>,
+    #[serde(default)]
+    comfyui_arguments: Vec<String>,
     #[serde(default)]
     generation_notifications_disabled: bool,
     #[serde(default)]
@@ -113,6 +118,10 @@ async fn get_webui_status(webui: State<'_, installer::WebuiControl>) -> Result<W
     if client.get(&ready_url).send().await.is_ok() {
         status.ping_ms = Some(started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64);
     }
+    if webui.package_id().as_deref() == Some("comfyui") {
+        status.active_model = Some("ComfyUI · workflow".into());
+        return Ok(status);
+    }
     let memory_url = format!("{ready_url}/sdapi/v1/memory");
     if let Ok(response) = client.get(memory_url).send().await {
         if let Ok(memory) = response.error_for_status() {
@@ -198,6 +207,13 @@ pub(crate) fn activate_managed_forge_neo(app: &AppHandle, directory: &std::path:
     write_settings(app, &settings)
 }
 
+pub(crate) fn activate_comfyui(app: &AppHandle, directory: &std::path::Path) -> Result<(), String> {
+    let mut settings = read_settings(app)?;
+    settings.comfyui_dir = Some(directory.to_string_lossy().into_owned());
+    settings.active_package = "comfyui".to_owned();
+    write_settings(app, &settings)
+}
+
 pub(crate) fn installation_dir(app: &AppHandle) -> Result<PathBuf, String> {
     if let Some(saved) = read_settings(app)?.installation_dir {
         return Ok(paths::subprocess_path(&PathBuf::from(saved)));
@@ -230,10 +246,14 @@ fn set_models_library_dir(app: AppHandle, directory: String, webui: State<'_, in
 
 pub(crate) fn active_package(app: &AppHandle) -> Result<String, String> {
     let saved = read_settings(app)?.active_package;
-    Ok(if saved == "forge-neo" { saved } else { "automatic1111".to_owned() })
+    Ok(if matches!(saved.as_str(), "forge-neo" | "comfyui") { saved } else { "automatic1111".to_owned() })
 }
 
 pub(crate) fn package_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    if active_package(app)? == "comfyui" {
+        return read_settings(app)?.comfyui_dir.map(PathBuf::from).map(|path| paths::subprocess_path(&path))
+            .ok_or("ComfyUI ещё не установлен.".to_owned());
+    }
     if active_package(app)? == "forge-neo" {
         let saved = read_settings(app)?.forge_neo_dir.ok_or("Forge Neo ещё не подключён.")?;
         return Ok(paths::subprocess_path(&PathBuf::from(saved)));
@@ -243,6 +263,7 @@ pub(crate) fn package_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 fn active_package_installed(app: &AppHandle) -> Result<bool, String> {
     let directory = package_dir(app)?;
+    if active_package(app)? == "comfyui" { return Ok(comfy::ready(&directory)); }
     if active_package(app)? == "forge-neo" {
         Ok(forge_neo_ready(app, &directory)?)
     } else {
@@ -260,6 +281,7 @@ fn forge_neo_ready(app: &AppHandle, directory: &std::path::Path) -> Result<bool,
 
 pub(crate) fn webui_arguments(app: &AppHandle) -> Result<Vec<String>, String> {
     let settings = read_settings(app)?;
+    if settings.active_package == "comfyui" { return Ok(settings.comfyui_arguments); }
     Ok(if settings.active_package == "forge-neo" { settings.forge_neo_arguments } else { settings.webui_arguments })
 }
 
@@ -296,7 +318,7 @@ fn get_state(app: AppHandle, webui: State<'_, installer::WebuiControl>) -> Resul
             stopping: running && webui.is_stopping(),
             stopped: webui.was_stopped() && webui.package_id().as_deref() == Some("automatic1111"),
             ready_url: if running { webui.ready_url() } else { None },
-            active: settings.active_package != "forge-neo",
+            active: settings.active_package == "automatic1111" || settings.active_package.is_empty(),
             managed: true,
             has_rollback: maintenance::has_rollback(&app, "automatic1111"),
         });
@@ -321,6 +343,21 @@ fn get_state(app: AppHandle, webui: State<'_, installer::WebuiControl>) -> Resul
                 managed: directory == parent.join("sd-webui-forge-neo") && directory.join(".flow-installed.json").is_file(),
                 has_rollback: maintenance::has_rollback(&app, "forge-neo"),
             });
+        }
+    }
+    if let Some(path) = settings.comfyui_dir {
+        let directory = paths::subprocess_path(&PathBuf::from(path));
+        if comfy::ready(&directory) {
+            let running = webui.is_running() && webui.package_id().as_deref() == Some("comfyui");
+            let version = fs::read(directory.join(".flow-installed.json")).ok()
+                .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+                .and_then(|value| value["version"].as_str().map(str::to_owned)).unwrap_or_default();
+            packages.push(PackageInfo { id: "comfyui".into(), name: "ComfyUI".into(), version,
+                path: directory.to_string_lossy().into_owned(), running,
+                stopping: running && webui.is_stopping(),
+                stopped: webui.was_stopped() && webui.package_id().as_deref() == Some("comfyui"),
+                ready_url: if running { webui.ready_url() } else { None },
+                active: settings.active_package == "comfyui", managed: true, has_rollback: false });
         }
     }
     let token = civitai_token(&app)?;
@@ -378,10 +415,13 @@ fn select_package(app: AppHandle, package_id: String, webui: State<'_, installer
     if webui.is_running() || downloads.is_running() { return Err("Остановите WebUI и загрузку модели перед сменой активного пакета.".to_owned()); }
     let directory = if package_id == "forge-neo" {
         read_settings(&app)?.forge_neo_dir.map(PathBuf::from).ok_or("Forge Neo ещё не подключён.")?
+    } else if package_id == "comfyui" {
+        read_settings(&app)?.comfyui_dir.map(PathBuf::from).ok_or("ComfyUI ещё не установлен.")?
     } else if package_id == "automatic1111" {
         installation_dir(&app)?.join("sd-webui")
     } else { return Err("Неизвестный пакет.".to_owned()); };
-    let ready = if package_id == "forge-neo" { forge_neo_ready(&app, &directory)? }
+    let ready = if package_id == "comfyui" { comfy::ready(&directory) }
+        else if package_id == "forge-neo" { forge_neo_ready(&app, &directory)? }
         else { directory.join("launch.py").is_file() };
     if !ready { return Err("Пакет не найден или установка ещё не завершена.".to_owned()); }
     let mut settings = read_settings(&app)?;
@@ -504,7 +544,7 @@ fn save_webui_arguments(app: AppHandle, arguments: Vec<String>) -> Result<Vec<St
 #[tauri::command]
 fn get_webui_settings(app: AppHandle) -> Result<WebuiSettings, String> {
     let settings = read_settings(&app)?;
-    Ok(WebuiSettings { arguments: if settings.active_package == "forge-neo" { settings.forge_neo_arguments } else { settings.webui_arguments }, sdxl_memory_profile: settings.sdxl_memory_profile })
+    Ok(WebuiSettings { arguments: webui_arguments(&app)?, sdxl_memory_profile: settings.sdxl_memory_profile })
 }
 
 #[tauri::command]
@@ -512,11 +552,12 @@ fn save_webui_settings(app: AppHandle, settings: WebuiSettings) -> Result<WebuiS
     installer::parse_webui_arguments(&settings.arguments)?;
     let mut saved = read_settings(&app)?;
     let arguments = settings.arguments.into_iter().map(|argument| argument.trim().to_owned()).collect();
-    if saved.active_package == "forge-neo" { saved.forge_neo_arguments = arguments; }
+    if saved.active_package == "comfyui" { saved.comfyui_arguments = arguments; }
+    else if saved.active_package == "forge-neo" { saved.forge_neo_arguments = arguments; }
     else { saved.webui_arguments = arguments; }
     saved.sdxl_memory_profile = settings.sdxl_memory_profile;
     write_settings(&app, &saved)?;
-    Ok(WebuiSettings { arguments: if saved.active_package == "forge-neo" { saved.forge_neo_arguments } else { saved.webui_arguments }, sdxl_memory_profile: saved.sdxl_memory_profile })
+    Ok(WebuiSettings { arguments: webui_arguments(&app)?, sdxl_memory_profile: saved.sdxl_memory_profile })
 }
 
 #[tauri::command]
@@ -558,6 +599,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            comfy::install_comfyui,
             set_generation_notifications,
             get_state,
             get_webui_status,

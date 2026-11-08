@@ -10,7 +10,7 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 #[cfg(windows)]
 struct WindowsJob(windows_sys::Win32::Foundation::HANDLE);
@@ -139,7 +139,7 @@ fn notify_kind(app: &AppHandle, kind: &'static str, phase: &'static str, message
     });
 }
 
-fn notify(app: &AppHandle, phase: &'static str, message: impl Into<String>) {
+pub(crate) fn notify(app: &AppHandle, phase: &'static str, message: impl Into<String>) {
     notify_kind(app, "install", phase, message);
 }
 
@@ -226,8 +226,8 @@ fn python_module_installed(python: &Path, module: &str) -> Result<bool, String> 
 }
 
 fn parse_webui_ready_url(line: &str) -> Option<String> {
-    let marker = "Running on local URL:";
-    let (_, suffix) = line.split_once(marker)?;
+    let suffix = line.split_once("Running on local URL:")
+        .or_else(|| line.split_once("To see the GUI go to:"))?.1;
     let port_text = ["http://127.0.0.1:", "http://localhost:"]
         .iter().find_map(|host| suffix.split_once(host).map(|(_, port)| port))?;
     let digits: String = port_text.chars().take_while(char::is_ascii_digit).collect();
@@ -391,7 +391,7 @@ pub(crate) fn run_logged(app: &AppHandle, control: &InstallControl, program: &st
     run_logged_kind(app, control, "install", program, args, cwd, locked_file, &[])
 }
 
-fn run_logged_with_env(app: &AppHandle, control: &InstallControl, program: &str, args: &[String], cwd: &Path, env: &[(&str, &Path)]) -> Result<(), String> {
+pub(crate) fn run_logged_with_env(app: &AppHandle, control: &InstallControl, program: &str, args: &[String], cwd: &Path, env: &[(&str, &Path)]) -> Result<(), String> {
     run_logged_kind(app, control, "install", program, args, cwd, None, env)
 }
 
@@ -508,7 +508,7 @@ fn apply_sdxl_memory_settings(directory: &Path) -> Result<(), String> {
         .map_err(|error| format!("Не удалось сохранить настройки памяти WebUI: {error}"))
 }
 
-fn run_logged_retry_locked_env(app: &AppHandle, control: &InstallControl, program: &str, args: &[String], cwd: &Path, env: &[(&str, &Path)]) -> Result<(), String> {
+pub(crate) fn run_logged_retry_locked_env(app: &AppHandle, control: &InstallControl, program: &str, args: &[String], cwd: &Path, env: &[(&str, &Path)]) -> Result<(), String> {
     const MAX_ATTEMPTS: usize = 3;
     for attempt in 1..=MAX_ATTEMPTS {
         let locked_file = Arc::new(AtomicBool::new(false));
@@ -881,8 +881,9 @@ pub(crate) fn launch_web_ui(app: AppHandle, webui: State<'_, WebuiControl>, inst
     if webui.is_running() { return Err("WebUI уже запущен или запускается.".to_owned()); }
     if installs.is_running() { return Err("Дождитесь завершения установки пакета или xformers.".to_owned()); }
     let package_id = package_id.unwrap_or(crate::active_package(&app)?);
-    if package_id != "automatic1111" && package_id != "forge-neo" { return Err("Неизвестный пакет.".to_owned()); }
+    if !matches!(package_id.as_str(), "automatic1111" | "forge-neo" | "comfyui") { return Err("Неизвестный пакет.".to_owned()); }
     if crate::active_package(&app)? != package_id { return Err("Сначала выберите пакет в списке Flow.".to_owned()); }
+    if package_id == "comfyui" { return crate::comfy::launch(app, &webui); }
     let forge = package_id == "forge-neo";
     let directory = if forge {
         crate::package_dir(&app)?
@@ -954,6 +955,11 @@ pub(crate) fn launch_web_ui(app: AppHandle, webui: State<'_, WebuiControl>, inst
     } else {
         command.env_remove("FLOW_SAFE_MODEL_SWITCH");
     }
+    start_process(app, &webui, package_id, command, detected_vram, memory_profile, arguments)
+}
+
+pub(crate) fn start_process(app: AppHandle, webui: &WebuiControl, package_id: String,
+    mut command: Command, detected_vram: Option<u64>, memory_profile: bool, arguments: Vec<String>) -> Result<(), String> {
     hide_console(&mut command);
     if webui.running.swap(true, Ordering::SeqCst) { return Err("WebUI уже запущен или запускается.".to_owned()); }
     *webui.package_id.lock().unwrap_or_else(|poison| poison.into_inner()) = Some(package_id);
@@ -1134,6 +1140,9 @@ pub(crate) async fn open_web_ui(app: AppHandle, webui: State<'_, WebuiControl>) 
 fn show_webui_window(app: &AppHandle, webui: &WebuiControl, reload: bool) -> Result<(), String> {
     if !webui.is_running() || webui.is_stopping() || webui.exited.load(Ordering::SeqCst) { return Err("WebUI сейчас недоступен.".to_owned()); }
     let url = internal_webui_url(&webui.ready_url().ok_or("WebUI ещё запускается.")?)?;
+    if webui.package_id().as_deref() == Some("comfyui") {
+        return app.emit("flow:comfy-open", url.as_str()).map_err(|error| error.to_string());
+    }
     if let Some(window) = app.get_webview_window("webui") {
         if reload || window.url().map(|current| current != url).unwrap_or(true) {
             window.navigate(url).map_err(|error| error.to_string())?;
@@ -1227,6 +1236,7 @@ mod tests {
 
     #[test]
     fn webui_ready_url_uses_reported_port() {
+        assert_eq!(parse_webui_ready_url("To see the GUI go to: http://127.0.0.1:8189"), Some("http://127.0.0.1:8189".to_owned()));
         assert_eq!(parse_webui_ready_url("[WebUI] Running on local URL:  http://127.0.0.1:7861\r"), Some("http://127.0.0.1:7861".to_owned()));
         assert_eq!(parse_webui_ready_url("Running on local URL:  http://localhost:7862"), Some("http://127.0.0.1:7862".to_owned()));
         assert_eq!(parse_webui_ready_url("Running on local URL: http://127.0.0.1:0"), None);

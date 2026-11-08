@@ -36,6 +36,7 @@ jobs:
       - run: pnpm run build
       - run: pnpm run test:diagnostics
       - run: pnpm run test:i18n
+      - run: pnpm run test:comfy
       - run: python -m unittest discover -s tests -v
       - run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release
       - name: Build Windows installer
