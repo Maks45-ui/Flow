@@ -1,5 +1,12 @@
 /** UTF-8 source copy → English. Product names, paths and process logs stay unchanged. */
 export const english: Readonly<Record<string, string>> = {
+  "Проверяем встроенное подключение к ComfyUI…": "Checking the embedded ComfyUI connection…",
+  "Загружаем редактор ComfyUI…": "Loading the ComfyUI editor…",
+  "ComfyUI запретил встроенное открытие (HTTP 403). Нажмите «Перезапустить», чтобы применить интеграцию Flow.": "ComfyUI blocked embedding (HTTP 403). Click Restart to apply the Flow integration.",
+  "Не удалось загрузить редактор ComfyUI. Нажмите «Обновить» или проверьте логи сервера.": "Could not load the ComfyUI editor. Click Reload or check the server logs.",
+  "ComfyUI вернул ошибку HTTP": "ComfyUI returned HTTP error",
+  "ComfyUI не запущен.": "ComfyUI is not running.",
+  "ComfyUI ещё не готов.": "ComfyUI is not ready yet.",
   "Повторить проверку": "Check again",
   "Проверка устройств GPU превысила время ожидания.": "GPU device check timed out.",
   "Драйвер не поддерживает установленную CUDA": "The driver does not support the installed CUDA runtime",

@@ -12,7 +12,7 @@ const scopes: Partial<Record<keyof FlowAPI, DiagnosticScope>> = {
   downloadModel: "download", pauseDownload: "download", cancelDownload: "download", listDownloads: "download", deleteDownload: "download"
 };
 const starts = new Set<keyof FlowAPI>(["installComfyUI", "installForgeNeo", "installXformers", "repairPackage", "updatePackage", "rollbackPackage", "launchWebUI", "searchModels", "downloadModel"]);
-const passive = new Set<keyof FlowAPI>(["getGpuDiagnostics", "getState", "getWebUIStatus", "getPreview", "setPage", "onTask", "getPreflight", "openDiagnosticSource"]);
+const passive = new Set<keyof FlowAPI>(["checkComfyFrame", "getGpuDiagnostics", "getState", "getWebUIStatus", "getPreview", "setPage", "onTask", "getPreflight", "openDiagnosticSource"]);
 const errorText = (error: unknown): string => error instanceof Error ? error.message : typeof error === "string" ? error : "Произошла неизвестная ошибка.";
 const scopeForTask = (event: TaskEvent): DiagnosticScope => event.kind === "xformers" ? "install" : event.kind;
 const cancelled = (message: string): boolean => /^(?:установка|загрузка) (?:отменена|приостановлена)\.?$/i.test(message.trim());

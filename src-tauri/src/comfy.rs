@@ -1,8 +1,51 @@
 use std::{fs, path::{Path, PathBuf}, process::{Command, Stdio}, sync::Arc};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use crate::installer::{self, InstallControl, WebuiControl};
 
 const REPOSITORY: &str = "https://github.com/Comfy-Org/ComfyUI.git";
+const EMBED_NODE: &str = "flow_embedded_ui";
+const EMBED_SCRIPT: &str = include_str!("../resources/flow_comfy_embed.py");
+
+fn frame_origin(app: &AppHandle) -> Result<String, String> {
+    let url = app.get_webview_window("main").ok_or("Окно Flow недоступно.")?
+        .url().map_err(|error| error.to_string())?;
+    if url.scheme() != "http" || !matches!(url.host_str(), Some("tauri.localhost" | "localhost" | "127.0.0.1")) {
+        return Err("Адрес окна Flow не поддерживает встроенный ComfyUI.".into());
+    }
+    Ok(url.origin().ascii_serialization())
+}
+
+fn allow_embed_node(arguments: &mut Vec<String>) {
+    if !arguments.iter().any(|arg| arg == "--disable-all-custom-nodes") { return; }
+    // Keep the user's whitelist and allow only our integration when custom nodes are disabled.
+    if let Some(index) = arguments.iter().position(|arg| arg == "--whitelist-custom-nodes") {
+        let listed = arguments[index + 1..].iter().take_while(|arg| !arg.starts_with("--"));
+        if !listed.clone().any(|arg| arg == EMBED_NODE) { arguments.insert(index + 1, EMBED_NODE.into()); }
+    } else if let Some(index) = arguments.iter().position(|arg| arg.starts_with("--whitelist-custom-nodes=")) {
+        let value = arguments[index].split_once('=').map(|(_, value)| value.to_owned()).unwrap_or_default();
+        arguments.splice(index..=index, ["--whitelist-custom-nodes".into(), EMBED_NODE.into(), value]);
+    } else {
+        arguments.extend(["--whitelist-custom-nodes".into(), EMBED_NODE.into()]);
+    }
+}
+
+/// Probe exactly the navigation the iframe will make, not just a bare HTTP GET.
+#[tauri::command]
+pub(crate) async fn check_comfy_frame(app: AppHandle, webui: State<'_, WebuiControl>) -> Result<u16, String> {
+    if webui.package_id().as_deref() != Some("comfyui") { return Err("ComfyUI не запущен.".into()); }
+    let raw = webui.ready_url().ok_or("ComfyUI ещё не готов.")?;
+    let url = reqwest::Url::parse(&raw).map_err(|error| error.to_string())?;
+    if url.scheme() != "http" || url.host_str() != Some("127.0.0.1") || url.port().is_none()
+        || !url.username().is_empty() || url.password().is_some() || url.path() != "/"
+        || url.query().is_some() || url.fragment().is_some() {
+        return Err("Недопустимый локальный адрес ComfyUI.".into());
+    }
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(5))
+        .redirect(reqwest::redirect::Policy::none()).build().map_err(|error| error.to_string())?;
+    client.get(url).header("Sec-Fetch-Site", "cross-site").header("Sec-Fetch-Dest", "iframe")
+        .header("Sec-Fetch-Mode", "navigate").header("Referer", format!("{}/", frame_origin(&app)?))
+        .send().await.map(|response| response.status().as_u16()).map_err(|error| error.to_string())
+}
 
 pub(crate) fn ready(directory: &Path) -> bool {
     directory.join("main.py").is_file() && directory.join("comfy").is_dir()
@@ -99,7 +142,7 @@ pub(crate) fn launch(app: AppHandle, webui: &WebuiControl) -> Result<(), String>
     fs::create_dir_all(library.join("Stable-diffusion")).map_err(|error| error.to_string())?;
     let config = directory.join(".flow-model-paths.yaml");
     fs::write(&config, model_paths(&library)).map_err(|error| error.to_string())?;
-    let arguments = installer::parse_webui_arguments(&crate::webui_arguments(&app)?)?;
+    let mut arguments = installer::parse_webui_arguments(&crate::webui_arguments(&app)?)?;
     // These launch options are owned by Flow so the iframe always talks to a local server.
     for arg in &arguments {
         let flag = arg.split('=').next().unwrap_or(arg);
@@ -107,6 +150,10 @@ pub(crate) fn launch(app: AppHandle, webui: &WebuiControl) -> Result<(), String>
             return Err(format!("Параметр {flag} управляется Flow для ComfyUI."));
         }
     }
+    let embed = directory.join("custom_nodes").join(EMBED_NODE);
+    fs::create_dir_all(&embed).map_err(|error| error.to_string())?;
+    fs::write(embed.join("__init__.py"), EMBED_SCRIPT).map_err(|error| error.to_string())?;
+    allow_embed_node(&mut arguments);
     let port = (8188..8288).find(|port| std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, *port)).is_ok())
         .ok_or("Нет свободного порта для ComfyUI.")?;
     let mut command = Command::new(installer::venv_python(&directory));
@@ -114,11 +161,25 @@ pub(crate) fn launch(app: AppHandle, webui: &WebuiControl) -> Result<(), String>
         "--disable-auto-launch", "--extra-model-paths-config"]).arg(&config).args(&arguments)
         .current_dir(&directory).env("PYTHONUNBUFFERED", "1").env("PYTHONIOENCODING", "utf-8:backslashreplace")
         .env("PYTHONFAULTHANDLER", "1").env_remove("COMMANDLINE_ARGS").stdin(Stdio::null());
+    command.env("FLOW_COMFY_EMBED_ORIGIN", frame_origin(&app)?);
     installer::start_process(app, webui, "comfyui".into(), command, None, false, arguments)
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn retains_custom_node_restrictions_and_existing_whitelist() {
+        let mut args = vec!["--disable-all-custom-nodes".into(), "--whitelist-custom-nodes".into(), "user_node".into(), "--lowvram".into()];
+        super::allow_embed_node(&mut args);
+        super::allow_embed_node(&mut args);
+        assert_eq!(args, ["--disable-all-custom-nodes", "--whitelist-custom-nodes", "flow_embedded_ui", "user_node", "--lowvram"]);
+        let mut disabled = vec!["--disable-all-custom-nodes".into()];
+        super::allow_embed_node(&mut disabled);
+        assert_eq!(disabled, ["--disable-all-custom-nodes", "--whitelist-custom-nodes", "flow_embedded_ui"]);
+        let mut equals = vec!["--disable-all-custom-nodes".into(), "--whitelist-custom-nodes=user_node".into()];
+        super::allow_embed_node(&mut equals);
+        assert_eq!(equals, ["--disable-all-custom-nodes", "--whitelist-custom-nodes", "flow_embedded_ui", "user_node"]);
+    }
     #[test]
     fn shares_model_paths_without_copying_or_yaml_injection() {
         let text = super::model_paths(std::path::Path::new("D:/Модели/# shared"));

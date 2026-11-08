@@ -9,6 +9,7 @@ import type { AppState, CheckReport, DownloadedFile, FlowAPI, FlowUpdate, Galler
 const nativeFlowApi: FlowAPI = {
   getGpuDiagnostics: () => invoke<GpuDiagnostics>("get_gpu_diagnostics"),
   installComfyUI: (installationDir) => invoke<void>("install_comfyui", { installationDir }),
+  checkComfyFrame: () => invoke<number>("check_comfy_frame"),
   onComfyOpen: async (callback) => listen<string>("flow:comfy-open", event => callback(event.payload)),
   setGenerationNotifications: (enabled, language) => invoke<void>("set_generation_notifications", { enabled, language }),
   onGenerationComplete: async (callback) => listen("flow:generation-complete", () => callback()),

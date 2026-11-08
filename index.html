@@ -84,7 +84,8 @@
           </div>
           <section class="panel glass-surface comfy-panel" id="comfy-panel" role="tabpanel" aria-labelledby="home-comfy-tab" hidden>
             <div class="comfy-panel-heading"><h2>ComfyUI</h2><div><button id="comfy-reload" class="secondary-button" type="button">Обновить</button><button id="comfy-restart" class="secondary-button" type="button">Перезапустить</button><button id="comfy-stop" class="secondary-button" type="button">Остановить</button></div></div>
-            <iframe id="comfy-frame" title="Редактор ComfyUI" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads" referrerpolicy="no-referrer"></iframe>
+            <div id="comfy-status" class="comfy-status" role="status" hidden></div>
+            <iframe id="comfy-frame" title="Редактор ComfyUI" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads" referrerpolicy="origin"></iframe>
           </section>
         </section>
 

@@ -74,7 +74,7 @@ const modelManager = new ModelManager(
   () => { void downloadManager.restore().catch((error: unknown) => notify(message(error))); }
 );
 const workspaceTools = new WorkspaceTools(flowApi, () => { void modelManager.refresh(); }, notify);
-const comfyHome = new ComfyHome(() => showPage("home"), () => void controlWebui(false), () => void controlWebui(true));
+const comfyHome = new ComfyHome(() => showPage("home"), () => void controlWebui(false), () => void controlWebui(true), () => flowApi.checkComfyFrame());
 void flowApi.onComfyOpen(url => { try { comfyHome.open(url); } catch (error) { notify(message(error)); } })
   .catch((error: unknown) => notify(message(error)));
 const generationNotificationToggle = element<HTMLInputElement>("generation-notifications");

@@ -9,5 +9,7 @@
 .comfy-panel-heading div { display: flex; flex-wrap: wrap; gap: 6px; }
 .comfy-panel-heading h2 { margin: 0; font-size: 13px; }
 .comfy-panel iframe { display: block; flex: 1 1 0; min-width: 0; min-height: 0; width: 100%; height: 100%; border: 0; background: var(--bg); }
+.comfy-status { flex: 1; display: grid; place-content: center; padding: 24px; color: var(--muted); text-align: center; white-space: pre-line; }
+.comfy-status[hidden], .comfy-panel iframe[hidden] { display: none; }
 .home-overview[hidden], .comfy-panel[hidden] { display: none; }
 @media (max-height: 680px) { .home-overview { grid-template-rows: minmax(0, 1.6fr) 115px minmax(0, 1fr); } }
