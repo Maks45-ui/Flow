@@ -1,6 +1,5 @@
 import { flowApi } from "./bridge";
-import { ComfyHome } from "./comfy-home";
-import { initializeLanguage, translate, getLocale, getLanguage } from "./i18n";
+import { initializeLanguage, translate, getLocale } from "./i18n";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -74,26 +73,6 @@ const modelManager = new ModelManager(
   () => { void downloadManager.restore().catch((error: unknown) => notify(message(error))); }
 );
 const workspaceTools = new WorkspaceTools(flowApi, () => { void modelManager.refresh(); }, notify);
-const comfyHome = new ComfyHome(() => showPage("home"), () => void controlWebui(false), () => void controlWebui(true), () => flowApi.checkComfyFrame());
-void flowApi.onComfyOpen(url => { try { comfyHome.open(url); } catch (error) { notify(message(error)); } })
-  .catch((error: unknown) => notify(message(error)));
-const generationNotificationToggle = element<HTMLInputElement>("generation-notifications");
-let generationNotificationPreferencesLoaded = false;
-generationNotificationToggle.addEventListener("change", async () => {
-  const enabled = generationNotificationToggle.checked;
-  generationNotificationToggle.disabled = true;
-  try { await flowApi.setGenerationNotifications(enabled, getLanguage()); }
-  catch {
-    generationNotificationToggle.checked = !enabled;
-    notify("Не удалось сохранить настройку уведомлений.");
-  }
-  finally { generationNotificationToggle.disabled = false; }
-});
-document.addEventListener("flow:language-changed", () => {
-  if (!generationNotificationPreferencesLoaded) return;
-  void flowApi.setGenerationNotifications(generationNotificationToggle.checked, getLanguage())
-    .catch((error: unknown) => notify(message(error)));
-});
 void flowApi.onGenerationComplete(() => {
   void refreshHomeRecent();
   if (document.body.dataset.page === "gallery") void refreshGallery();
@@ -181,7 +160,6 @@ function setConsoleStatus(label: string, state: "idle" | "running" | "done" | "e
 }
 
 function openHomeConsole(): void {
-  comfyHome.showOverview();
   if (document.body.dataset.page !== "home") showPage("home");
   terminal.focus({ preventScroll: true });
 }
@@ -484,7 +462,6 @@ function showPage(page: Page): void {
 }
 
 function renderPackages(state: AppState): void {
-  comfyHome.sync(state.packages);
   packageList.replaceChildren();
   const count = state.packages.length;
   const activePackage = state.packages.find((item) => item.active) ?? state.packages[0];
@@ -516,7 +493,7 @@ function renderPackages(state: AppState): void {
     const titleRow = make("div", "package-title-row");
     titleRow.append(make("h3", "", item.name));
     details.append(titleRow, make("p", "package-description", item.id === "comfyui"
-      ? "Редактор рабочих процессов генерации прямо на главной странице Flow."
+      ? "Редактор рабочих процессов генерации с открытием в браузере."
       : item.id === "forge-neo"
       ? "Универсальный пакет для генерации изображений с поддержкой SDXL, Flux и расширений."
       : "Пакет Stable Diffusion WebUI для генерации изображений и работы с моделями."));
@@ -553,7 +530,7 @@ function renderPackages(state: AppState): void {
         await refreshState();
       }
     });
-    const open = make("button", "secondary-button", item.id === "comfyui" ? "Открыть ComfyUI" : "Открыть WebUI в Flow");
+    const open = make("button", "secondary-button", item.id === "comfyui" ? "Открыть ComfyUI в браузере" : "Открыть WebUI в браузере");
     open.type = "button";
     open.disabled = !item.readyUrl || item.stopping;
     if (item.readyUrl) open.title = item.readyUrl;
@@ -675,13 +652,6 @@ async function refreshState(): Promise<void> {
   try {
     const state = await window.flow.getState();
     if (sequence === stateSequence) {
-      if (!generationNotificationPreferencesLoaded) {
-        generationNotificationToggle.checked = state.generationNotificationsEnabled;
-        generationNotificationToggle.disabled = false;
-        generationNotificationPreferencesLoaded = true;
-        void flowApi.setGenerationNotifications(state.generationNotificationsEnabled, getLanguage())
-          .catch((error: unknown) => notify(message(error)));
-      }
       renderPackages(state);
       void refreshWebUIStatus();
     }
@@ -1389,7 +1359,7 @@ installPackageType.addEventListener("change", () => {
   element<HTMLElement>("forge-install-location").hidden = !importForge;
   element<HTMLElement>("install-description").textContent = importForge
     ? "Подключите готовый Forge Neo из Stability Matrix. В Stability Matrix откройте папку пакета через меню «⋮» и остановите его перед запуском в Flow."
-    : comfy ? "Flow установит ComfyUI в отдельное окружение Python 3.13 с PyTorch CUDA. Редактор откроется на главной без внешнего браузера."
+    : comfy ? "Flow установит ComfyUI в отдельное окружение Python 3.13 с PyTorch CUDA. Редактор откроется в браузере."
       : "Flow скачает Forge Neo, подготовит Python 3.13 в отдельном окружении и установит зависимости. Ход установки появится в консоли.";
   element<HTMLElement>("install-folder-note").textContent = comfy
     ? "ComfyUI будет установлен отдельно в подпапку ComfyUI. Требуется NVIDIA с актуальным драйвером CUDA."

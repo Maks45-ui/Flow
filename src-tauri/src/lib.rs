@@ -25,10 +25,6 @@ struct Settings {
     #[serde(default)]
     comfyui_arguments: Vec<String>,
     #[serde(default)]
-    generation_notifications_disabled: bool,
-    #[serde(default)]
-    notification_language: String,
-    #[serde(default)]
     civitai_token: String,
     #[serde(default)]
     installation_dir: Option<String>,
@@ -60,7 +56,6 @@ struct WebuiSettings {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AppState {
-    generation_notifications_enabled: bool,
     packages: Vec<PackageInfo>,
     has_civitai_token: bool,
     models_path: String,
@@ -363,7 +358,6 @@ fn get_state(app: AppHandle, webui: State<'_, installer::WebuiControl>) -> Resul
     }
     let token = civitai_token(&app)?;
     Ok(AppState {
-        generation_notifications_enabled: !settings.generation_notifications_disabled,
         packages,
         has_civitai_token: !token.is_empty(),
         models_path: civitai::models_directory(&app)?.to_string_lossy().into_owned(),
@@ -569,15 +563,6 @@ fn set_page(page: String) {
     discord::set_page(&page);
 }
 
-#[tauri::command]
-fn set_generation_notifications(app: AppHandle, enabled: bool, language: String) -> Result<(), String> {
-    if language != "ru" && language != "en" { return Err("Unsupported notification language".to_owned()); }
-    let mut settings = read_settings(&app)?;
-    settings.generation_notifications_disabled = !enabled;
-    settings.notification_language = language;
-    write_settings(&app, &settings)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(windows)]
@@ -594,19 +579,16 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_notification::init())
         .manage(Arc::new(installer::InstallControl::default()))
         .manage(installer::WebuiControl::default())
         .manage(Arc::new(civitai::DownloadControl::default()))
         .setup(|app| {
-            generation::start_notification_monitor(app.handle().clone());
+            generation::start_completion_monitor(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             gpu_diagnostics::get_gpu_diagnostics,
             comfy::install_comfyui,
-            comfy::check_comfy_frame,
-            set_generation_notifications,
             get_state,
             get_webui_status,
             set_installation_dir,

@@ -9,7 +9,7 @@
     "check": "tsc --noEmit",
     "test:diagnostics": "node --test tests/diagnostics.test.mjs tests/error-help-ui.test.mjs",
     "test:i18n": "node --test tests/i18n.test.mjs",
-    "test:comfy": "node --test tests/comfy-home.test.mjs",
+    "test:comfy": "node --test tests/home-workspace.test.mjs",
     "build": "pnpm run check && vite build",
     "tauri": "tauri",
     "start": "tauri dev",
