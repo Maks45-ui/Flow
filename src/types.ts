@@ -16,7 +16,6 @@ export interface PackageInfo {
 }
 
 export interface AppState {
-  generationNotificationsEnabled: boolean;
   packages: PackageInfo[];
   hasCivitaiToken: boolean;
   modelsPath: string;
@@ -177,9 +176,6 @@ export interface StorageReport {
 export interface FlowAPI {
   getGpuDiagnostics(): Promise<GpuDiagnostics>;
   installComfyUI(installationDir: string): Promise<void>;
-  checkComfyFrame(): Promise<number>;
-  onComfyOpen(callback: (url: string) => void): Promise<() => void>;
-  setGenerationNotifications(enabled: boolean, language: "ru" | "en"): Promise<void>;
   onGenerationComplete(callback: () => void): Promise<() => void>;
   openDiscordServer(): Promise<void>;
   inspectModelImport(path: string): Promise<ModelImportPreview>;

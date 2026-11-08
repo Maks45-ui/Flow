@@ -56,11 +56,7 @@
       <div class="content">
         <section class="page active" id="page-home" aria-labelledby="home-title">
           <h1 id="home-title" class="visually-hidden">Главная</h1>
-          <div class="home-view-tabs" role="tablist" aria-label="Рабочая область главной">
-            <button id="home-overview-tab" class="secondary-button" type="button" role="tab" aria-selected="true" aria-controls="home-overview">Обзор</button>
-            <button id="home-comfy-tab" class="secondary-button" type="button" role="tab" aria-selected="false" aria-controls="comfy-panel" disabled>ComfyUI</button>
-          </div>
-          <div class="home-overview" id="home-overview" role="tabpanel" aria-labelledby="home-overview-tab">
+          <div class="home-overview" id="home-overview">
           <section class="panel glass-surface studio-panel" aria-labelledby="studio-title">
             <div class="studio-toolbar"><h2 id="studio-title">Пакет Stable Diffusion <span class="studio-package-count">(<span id="package-count">0</span>)</span></h2><div><span id="system-status">Готов к работе</span><button class="secondary-button" id="cancel-home-install" type="button" hidden>Отменить установку</button><button class="secondary-button" id="add-package" type="button">＋ Добавить пакет</button><button class="secondary-button" id="add-existing-model" type="button" title="Выберите папку установленного Forge Neo с launch.py и venv">＋ Добавить установленную модель</button></div></div>
             <div id="package-list" class="package-list"></div>
@@ -82,11 +78,6 @@
           </section>
           <span id="package-badge" hidden>0 пакетов</span>
           </div>
-          <section class="panel glass-surface comfy-panel" id="comfy-panel" role="tabpanel" aria-labelledby="home-comfy-tab" hidden>
-            <div class="comfy-panel-heading"><h2>ComfyUI</h2><div><button id="comfy-reload" class="secondary-button" type="button">Обновить</button><button id="comfy-restart" class="secondary-button" type="button">Перезапустить</button><button id="comfy-stop" class="secondary-button" type="button">Остановить</button></div></div>
-            <div id="comfy-status" class="comfy-status" role="status" hidden></div>
-            <iframe id="comfy-frame" title="Редактор ComfyUI" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads" referrerpolicy="origin"></iframe>
-          </section>
         </section>
 
         <section class="page" id="page-gallery" aria-labelledby="gallery-title">
@@ -129,7 +120,6 @@
               <section class="theme-group" aria-labelledby="theme-custom-title"><div class="theme-group-heading"><h3 id="theme-custom-title">Кастомные</h3><p>Темы с собственными обоями и звуками</p></div><div class="theme-options" id="theme-custom"></div></section>
             </div>
             <div class="setting-row"><div><h2>Язык</h2><p>Язык интерфейса</p></div><select class="language-select" id="language-select" aria-label="Язык интерфейса"><option value="ru" lang="ru" translate="no">Русский</option><option value="en" lang="en" translate="no">English</option></select></div>
-            <div class="setting-row"><div><h2 id="generation-notifications-title">Уведомления о генерации</h2><p id="generation-notifications-description">Показывать уведомление Windows, когда изображение готово, даже если Flow свёрнут.</p></div><input class="notification-toggle" id="generation-notifications" type="checkbox" role="switch" aria-labelledby="generation-notifications-title" aria-describedby="generation-notifications-description" checked disabled /></div>
             <div class="setting-row installation-row"><div><h2>Папка установки Stable Diffusion</h2><p>Flow создаст в выбранной папке каталог sd-webui.</p></div></div>
             <div class="path-control"><input id="install-dir-settings" type="text" readonly aria-label="Папка установки Stable Diffusion" placeholder="Загрузка пути…" /><button id="browse-install-settings" class="secondary-button" type="button">Обзор...</button></div>
             <div class="setting-row token-row"><div><h2>Ключ Civitai API</h2><p>Хранится только на этом устройстве. Нужен для закрытых моделей и загрузок.</p></div><span class="setting-value" id="token-state">Не задан</span></div>

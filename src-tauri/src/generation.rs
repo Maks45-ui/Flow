@@ -1,7 +1,6 @@
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
-use tauri_plugin_notification::NotificationExt;
 
 use crate::installer::WebuiControl;
 
@@ -137,9 +136,9 @@ impl CompletionTracker {
     }
 }
 
-/// Native worker: completion notifications do not depend on WebView timers or a
-/// visible Home page. It requests state only, never preview images.
-pub(crate) fn start_notification_monitor(app: AppHandle) {
+/// Keep gallery refresh events working even when Home is not visible.
+/// This monitor emits internal events only; it never displays notifications.
+pub(crate) fn start_completion_monitor(app: AppHandle) {
     std::thread::spawn(move || {
         let Ok(client) = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(3)).build() else { return; };
@@ -177,14 +176,6 @@ pub(crate) fn start_notification_monitor(app: AppHandle) {
             }
             if !tracker.observe(&progress) { continue; }
             let _ = app.emit("flow:generation-complete", ());
-            let Ok(settings) = crate::read_settings(&app) else { continue; };
-            if settings.generation_notifications_disabled { continue; }
-            let body = if settings.notification_language == "en" {
-                "Generation complete. Your image is ready!"
-            } else { "Генерация завершена. Изображение готово!" };
-            if let Err(error) = app.notification().builder().title("Flow").body(body).show() {
-                eprintln!("Flow generation notification: {error}");
-            }
         }
     });
 }
@@ -216,15 +207,13 @@ mod tests {
     }
 
     #[test]
-    fn notifies_once_and_does_not_replay_old_or_muted_jobs() {
+    fn emits_completion_once_without_replaying_old_jobs() {
         let mut tracker = CompletionTracker::default();
         assert!(!tracker.observe(&snapshot(false, "old", 1, false)));
         assert!(!tracker.observe(&snapshot(true, "new", 0, false)));
         assert!(!tracker.observe(&snapshot(true, "new", 1, false)));
         assert!(tracker.observe(&snapshot(false, "new", 2, false)));
         assert!(!tracker.observe(&snapshot(false, "new", 2, false)));
-        // The state is consumed before checking preferences, so enabling later
-        // cannot replay a completion that occurred while notifications were off.
         assert!(!tracker.observe(&snapshot(false, "new", 2, false)));
         assert!(!tracker.observe(&snapshot(true, "new", 0, false)));
         assert!(tracker.observe(&snapshot(false, "new", 1, false)));
@@ -242,17 +231,6 @@ mod tests {
         assert!(!tracker.observe(&snapshot(true, "lost", 0, false)));
         assert!(!tracker.observe(&super::GenerationProgress::idle(false, "offline")));
         assert!(!tracker.observe(&snapshot(false, "old", 1, false)));
-    }
-
-    #[test]
-    fn notification_preference_defaults_on_and_round_trips() {
-        let mut settings: crate::Settings = serde_json::from_value(json!({})).unwrap();
-        assert!(!settings.generation_notifications_disabled);
-        settings.generation_notifications_disabled = true;
-        settings.notification_language = "en".to_owned();
-        let restored: crate::Settings = serde_json::from_value(serde_json::to_value(settings).unwrap()).unwrap();
-        assert!(restored.generation_notifications_disabled);
-        assert_eq!(restored.notification_language, "en");
     }
 
     #[test]
