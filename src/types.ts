@@ -2,7 +2,7 @@ export type Page = "home" | "gallery" | "models" | "manage-models" | "settings";
 export type TaskPhase = "idle" | "checking" | "cloning" | "venv" | "dependencies" | "verifying" | "starting" | "stabilizing" | "ready" | "running" | "stopping" | "log" | "model_error" | "paused" | "done" | "error" | "cancelled";
 
 export interface PackageInfo {
-  id: "automatic1111" | "forge-neo";
+  id: "automatic1111" | "forge-neo" | "comfyui";
   name: string;
   version: string;
   path: string;
@@ -54,6 +54,7 @@ export interface WebUIStatus {
 }
 
 export interface GenerationProgress {
+  indeterminate?: boolean;
   available: boolean;
   active: boolean;
   percent: number;
@@ -167,6 +168,8 @@ export interface StorageReport {
   files: { path: string; name: string; sizeBytes: number; category: "models" | "outputs" | "packages" }[];
 }
 export interface FlowAPI {
+  installComfyUI(installationDir: string): Promise<void>;
+  onComfyOpen(callback: (url: string) => void): Promise<() => void>;
   setGenerationNotifications(enabled: boolean, language: "ru" | "en"): Promise<void>;
   onGenerationComplete(callback: () => void): Promise<() => void>;
   openDiscordServer(): Promise<void>;

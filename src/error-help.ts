@@ -4,12 +4,13 @@ import { buildDiagnosticReport, diagnose, DiagnosticHistory, redactDiagnostics }
 import type { DiagnosticIncident, DiagnosticScope } from "./diagnostics";
 
 const scopes: Partial<Record<keyof FlowAPI, DiagnosticScope>> = {
+  installComfyUI: "install",
   installForgeNeo: "install", installXformers: "install", repairPackage: "install", updatePackage: "install", rollbackPackage: "install",
   launchWebUI: "launch", stopWebUI: "launch", openWebUI: "launch", checkXformers: "install",
   searchModels: "catalog", getStarterModel: "catalog", saveCivitaiToken: "catalog", saveOnboardingToken: "catalog",
   downloadModel: "download", pauseDownload: "download", cancelDownload: "download", listDownloads: "download", deleteDownload: "download"
 };
-const starts = new Set<keyof FlowAPI>(["installForgeNeo", "installXformers", "repairPackage", "updatePackage", "rollbackPackage", "launchWebUI", "searchModels", "downloadModel"]);
+const starts = new Set<keyof FlowAPI>(["installComfyUI", "installForgeNeo", "installXformers", "repairPackage", "updatePackage", "rollbackPackage", "launchWebUI", "searchModels", "downloadModel"]);
 const passive = new Set<keyof FlowAPI>(["getState", "getWebUIStatus", "getPreview", "setPage", "onTask", "getPreflight", "openDiagnosticSource"]);
 const errorText = (error: unknown): string => error instanceof Error ? error.message : typeof error === "string" ? error : "Произошла неизвестная ошибка.";
 const scopeForTask = (event: TaskEvent): DiagnosticScope => event.kind === "xformers" ? "install" : event.kind;
@@ -76,8 +77,8 @@ class ErrorHelpController {
   begin(scope: DiagnosticScope, method?: keyof FlowAPI, args: readonly unknown[] = []): void {
     this.history.begin(scope);
     this.active.add(scope);
-    const explicit = method === "installForgeNeo" ? "forge-neo" : args[0];
-    this.operationPackages.set(scope, explicit === "forge-neo" || explicit === "automatic1111" ? explicit : this.packageId);
+    const explicit = method === "installComfyUI" ? "comfyui" : method === "installForgeNeo" ? "forge-neo" : args[0];
+    this.operationPackages.set(scope, explicit === "comfyui" || explicit === "forge-neo" || explicit === "automatic1111" ? explicit : this.packageId);
   }
 
   capture(scope: DiagnosticScope, message: string): void {

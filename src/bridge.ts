@@ -7,6 +7,8 @@ import type { AppState, CheckReport, DownloadedFile, FlowAPI, FlowUpdate, Galler
 
 // The UI only knows this typed contract. System access stays in Rust.
 const nativeFlowApi: FlowAPI = {
+  installComfyUI: (installationDir) => invoke<void>("install_comfyui", { installationDir }),
+  onComfyOpen: async (callback) => listen<string>("flow:comfy-open", event => callback(event.payload)),
   setGenerationNotifications: (enabled, language) => invoke<void>("set_generation_notifications", { enabled, language }),
   onGenerationComplete: async (callback) => listen("flow:generation-complete", () => callback()),
   openDiscordServer: () => invoke<void>("open_discord_server"),

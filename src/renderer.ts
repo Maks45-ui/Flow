@@ -1,4 +1,5 @@
 import { flowApi } from "./bridge";
+import { ComfyHome } from "./comfy-home";
 import { initializeLanguage, translate, getLocale, getLanguage } from "./i18n";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { check, type Update } from "@tauri-apps/plugin-updater";
@@ -73,6 +74,9 @@ const modelManager = new ModelManager(
   () => { void downloadManager.restore().catch((error: unknown) => notify(message(error))); }
 );
 const workspaceTools = new WorkspaceTools(flowApi, () => { void modelManager.refresh(); }, notify);
+const comfyHome = new ComfyHome(() => showPage("home"), () => void controlWebui(false), () => void controlWebui(true));
+void flowApi.onComfyOpen(url => { try { comfyHome.open(url); } catch (error) { notify(message(error)); } })
+  .catch((error: unknown) => notify(message(error)));
 const generationNotificationToggle = element<HTMLInputElement>("generation-notifications");
 let generationNotificationPreferencesLoaded = false;
 generationNotificationToggle.addEventListener("change", async () => {
@@ -177,6 +181,7 @@ function setConsoleStatus(label: string, state: "idle" | "running" | "done" | "e
 }
 
 function openHomeConsole(): void {
+  comfyHome.showOverview();
   if (document.body.dataset.page !== "home") showPage("home");
   terminal.focus({ preventScroll: true });
 }
@@ -267,7 +272,7 @@ async function refreshPreflight(): Promise<void> {
   if (importForge) return;
   target.textContent = "Проверяем окружение…";
   try {
-    const report = await window.flow.getPreflight("forge-neo");
+    const report = await window.flow.getPreflight(installPackageType.value === "comfyui-install" ? "comfyui" : "forge-neo");
     if (request !== preflightSequence || !installDialog.open) return;
     renderChecks(target, report);
     element<HTMLButtonElement>("start-install").disabled = !report.canProceed;
@@ -403,9 +408,13 @@ function addWebuiArgument(raw: string): boolean {
 }
 
 async function openWebuiSettings(): Promise<void> {
+  const comfy = activePackageId === "comfyui";
+  element<HTMLElement>("webui-settings-title").textContent = comfy ? "ComfyUI Settings" : "WebUI Settings";
+  webuiArgInput.placeholder = comfy ? "Например, --lowvram или --cpu" : "Например, --lowvram или --theme dark";
   const memoryCard = document.querySelector<HTMLElement>(".webui-memory-card");
   if (memoryCard) {
-    const forge = activePackageId === "forge-neo";
+    memoryCard.hidden = comfy;
+    const forge = activePackageId !== "automatic1111";
     memoryCard.querySelectorAll<HTMLElement>(".webui-memory-presets, .webui-memory-toggle, .webui-xformers, .webui-memory-a1111").forEach((item) => { item.hidden = forge; });
     const advice = element<HTMLElement>("webui-memory-advice");
     advice.textContent = forge
@@ -423,8 +432,9 @@ async function openWebuiSettings(): Promise<void> {
     }).catch(() => { advice.textContent = "Не удалось определить VRAM. Профиль можно выбрать вручную."; });
   }
   document.querySelectorAll<HTMLButtonElement>(".webui-quick-arg").forEach((button) => {
-    button.hidden = activePackageId === "forge-neo" && button.dataset.argument !== "--xformers"
-      && button.dataset.argument !== "--api" && button.dataset.argument !== "--listen";
+    button.hidden = comfy ? button.dataset.argument !== "--lowvram"
+      : activePackageId === "forge-neo" && button.dataset.argument !== "--xformers"
+        && button.dataset.argument !== "--api" && button.dataset.argument !== "--listen";
   });
   if (webuiSettingsDialog.open) return;
   webuiSettingsDialog.showModal();
@@ -474,10 +484,13 @@ function showPage(page: Page): void {
 }
 
 function renderPackages(state: AppState): void {
+  comfyHome.sync(state.packages);
   packageList.replaceChildren();
   const count = state.packages.length;
   const activePackage = state.packages.find((item) => item.active) ?? state.packages[0];
   activePackageId = activePackage?.id ?? "automatic1111";
+  const profilePanel = element<HTMLElement>("model-profile-form").closest<HTMLElement>("section");
+  if (profilePanel) profilePanel.hidden = activePackageId === "comfyui";
   element<HTMLElement>("runtime-package").textContent = activePackage?.name ?? "Пакет не выбран";
   hasWebuiPackage = count > 0;
   webuiRunning = state.packages.some((item) => item.running);
@@ -502,7 +515,9 @@ function renderPackages(state: AppState): void {
     const details = make("div", "package-details");
     const titleRow = make("div", "package-title-row");
     titleRow.append(make("h3", "", item.name));
-    details.append(titleRow, make("p", "package-description", item.id === "forge-neo"
+    details.append(titleRow, make("p", "package-description", item.id === "comfyui"
+      ? "Редактор рабочих процессов генерации прямо на главной странице Flow."
+      : item.id === "forge-neo"
       ? "Универсальный пакет для генерации изображений с поддержкой SDXL, Flux и расширений."
       : "Пакет Stable Diffusion WebUI для генерации изображений и работы с моделями."));
     const tags = make("div", "package-tags");
@@ -538,7 +553,7 @@ function renderPackages(state: AppState): void {
         await refreshState();
       }
     });
-    const open = make("button", "secondary-button", "Открыть WebUI в Flow");
+    const open = make("button", "secondary-button", item.id === "comfyui" ? "Открыть ComfyUI" : "Открыть WebUI в Flow");
     open.type = "button";
     open.disabled = !item.readyUrl || item.stopping;
     if (item.readyUrl) open.title = item.readyUrl;
@@ -622,14 +637,14 @@ function renderPackages(state: AppState): void {
         await refreshState();
       } catch (error) { notify(message(error)); linkModels.disabled = false; }
     });
-    moreMenu.append(linkModels);
+    if (item.id !== "comfyui") moreMenu.append(linkModels);
     const restart = make("button", "secondary-button package-restart", "Перезапустить");
     restart.type = "button";
     restart.dataset.packageId = item.id;
     restart.disabled = !item.running || item.stopping || installing || webuiControlBusy;
     restart.addEventListener("click", () => void controlWebui(true));
     moreMenu.append(restart);
-    if (item.managed) {
+    if (item.managed && item.id !== "comfyui") {
       const check = make("button", "secondary-button", "Проверить");
       check.type = "button";
       check.addEventListener("click", () => void showPackageHealth(item));
@@ -685,12 +700,13 @@ async function refreshGenerationProgress(): Promise<void> {
     const progress = await window.flow.getGenerationProgress();
     const image = element<HTMLImageElement>("generation-preview");
     element<HTMLElement>("generation-label").textContent = progress.label;
-    element<HTMLElement>("generation-percent").textContent = progress.active ? `${progress.percent}%` : "—";
+    element<HTMLElement>("generation-percent").textContent = progress.active && !progress.indeterminate ? `${progress.percent}%` : "—";
     element<HTMLElement>("generation-eta").textContent = progress.active && progress.etaSeconds !== null
       ? `Осталось ≈ ${Math.floor(progress.etaSeconds / 60)} мин ${progress.etaSeconds % 60} с`
-      : progress.available ? "Ожидание" : "API недоступен";
+      : progress.active ? "Вычисление времени…" : progress.available ? "Ожидание" : "API недоступен";
     element<HTMLElement>("generation-fill").style.width = `${progress.active ? progress.percent : 0}%`;
     element<HTMLElement>("generation-track").setAttribute("aria-valuenow", String(progress.active ? progress.percent : 0));
+    if (progress.indeterminate) element<HTMLElement>("generation-track").removeAttribute("aria-valuenow");
     image.hidden = !progress.active || !progress.preview;
     if (!image.hidden && progress.preview && image.src !== progress.preview) image.src = progress.preview;
     if (image.hidden) image.removeAttribute("src");
@@ -1368,11 +1384,16 @@ element<HTMLButtonElement>("add-package").addEventListener("click", () => {
 });
 installPackageType.addEventListener("change", () => {
   const importForge = installPackageType.value === "forge-neo-import";
+  const comfy = installPackageType.value === "comfyui-install";
   element<HTMLElement>("package-install-location").hidden = importForge;
   element<HTMLElement>("forge-install-location").hidden = !importForge;
   element<HTMLElement>("install-description").textContent = importForge
     ? "Подключите готовый Forge Neo из Stability Matrix. В Stability Matrix откройте папку пакета через меню «⋮» и остановите его перед запуском в Flow."
-    : "Flow скачает Forge Neo, подготовит Python 3.13 в отдельном окружении и установит зависимости. Ход установки появится в консоли.";
+    : comfy ? "Flow установит ComfyUI в отдельное окружение Python 3.13 с PyTorch CUDA. Редактор откроется на главной без внешнего браузера."
+      : "Flow скачает Forge Neo, подготовит Python 3.13 в отдельном окружении и установит зависимости. Ход установки появится в консоли.";
+  element<HTMLElement>("install-folder-note").textContent = comfy
+    ? "ComfyUI будет установлен отдельно в подпапку ComfyUI. Требуется NVIDIA с актуальным драйвером CUDA."
+    : "Forge Neo будет установлен отдельно в подпапку sd-webui-forge-neo.";
   element<HTMLButtonElement>("start-install").textContent = importForge ? "Подключить Forge Neo" : "Начать установку";
   element<HTMLButtonElement>("start-install").disabled = !importForge;
   void refreshPreflight();
@@ -1392,14 +1413,15 @@ element<HTMLButtonElement>("start-install").addEventListener("click", async () =
     return;
   }
   if (!installationDir) { notify("Сначала выберите папку установки."); return; }
-  installingPackageId = "forge-neo";
+  installingPackageId = installPackageType.value === "comfyui-install" ? "comfyui" : "forge-neo";
   setInstalling(true);
   installDialog.close();
   openHomeConsole();
   setConsoleStatus("Установка", "running");
-  queueLog(terminal, `[Установка] Начало установки ${"Forge Neo"}...`);
+  queueLog(terminal, `[Установка] Начало установки ${installingPackageId === "comfyui" ? "ComfyUI" : "Forge Neo"}...`);
   try {
-    await window.flow.installForgeNeo(installationDir);
+    if (installingPackageId === "comfyui") await window.flow.installComfyUI(installationDir);
+    else await window.flow.installForgeNeo(installationDir);
   }
   catch (error) {
     setInstalling(false);

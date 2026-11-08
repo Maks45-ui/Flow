@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/src/boykisser.css" />
   <link rel="stylesheet" href="/src/error-help.css" />
   <link rel="stylesheet" href="/src/language.css" />
+  <link rel="stylesheet" href="/src/comfy.css" />
 </head>
 <body>
   <div class="splash-screen" id="splash-screen" role="status" aria-label="Запуск Flow">
@@ -55,6 +56,11 @@
       <div class="content">
         <section class="page active" id="page-home" aria-labelledby="home-title">
           <h1 id="home-title" class="visually-hidden">Главная</h1>
+          <div class="home-view-tabs" role="tablist" aria-label="Рабочая область главной">
+            <button id="home-overview-tab" class="secondary-button" type="button" role="tab" aria-selected="true" aria-controls="home-overview">Обзор</button>
+            <button id="home-comfy-tab" class="secondary-button" type="button" role="tab" aria-selected="false" aria-controls="comfy-panel" disabled>ComfyUI</button>
+          </div>
+          <div class="home-overview" id="home-overview" role="tabpanel" aria-labelledby="home-overview-tab">
           <section class="panel glass-surface studio-panel" aria-labelledby="studio-title">
             <div class="studio-toolbar"><h2 id="studio-title">Пакет Stable Diffusion <span class="studio-package-count">(<span id="package-count">0</span>)</span></h2><div><span id="system-status">Готов к работе</span><button class="secondary-button" id="cancel-home-install" type="button" hidden>Отменить установку</button><button class="secondary-button" id="add-package" type="button">＋ Добавить пакет</button><button class="secondary-button" id="add-existing-model" type="button" title="Выберите папку установленного Forge Neo с launch.py и venv">＋ Добавить установленную модель</button></div></div>
             <div id="package-list" class="package-list"></div>
@@ -75,6 +81,11 @@
 </pre>
           </section>
           <span id="package-badge" hidden>0 пакетов</span>
+          </div>
+          <section class="panel glass-surface comfy-panel" id="comfy-panel" role="tabpanel" aria-labelledby="home-comfy-tab" hidden>
+            <div class="comfy-panel-heading"><h2>ComfyUI</h2><div><button id="comfy-reload" class="secondary-button" type="button">Обновить</button><button id="comfy-restart" class="secondary-button" type="button">Перезапустить</button><button id="comfy-stop" class="secondary-button" type="button">Остановить</button></div></div>
+            <iframe id="comfy-frame" title="Редактор ComfyUI" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads" referrerpolicy="no-referrer"></iframe>
+          </section>
         </section>
 
         <section class="page" id="page-gallery" aria-labelledby="gallery-title">
@@ -161,7 +172,7 @@
     </section>
   </dialog>
 
-  <dialog class="modal glass-surface" id="install-dialog"><div class="modal-header"><div><span class="eyebrow">ДОБАВИТЬ ПАКЕТ</span><h2>Выберите WebUI</h2></div><button class="icon-button" id="close-install" aria-label="Закрыть">×</button></div><label class="install-package-label" for="install-package-type">Пакет</label><select id="install-package-type" class="install-package-select"><option value="forge-neo-install">Forge Neo — установить отдельно</option><option value="forge-neo-import">Forge Neo — подключить существующий</option></select><p id="install-description">Flow скачает Forge Neo, подготовит Python 3.13 в отдельном окружении и установит зависимости. Ход установки появится в консоли.</p><div class="install-location" id="package-install-location"><label for="install-dir-dialog">Папка установки</label><div class="path-control"><input id="install-dir-dialog" type="text" readonly placeholder="Выберите папку" /><button id="browse-install-dialog" class="secondary-button" type="button">Обзор...</button></div><small>Forge Neo будет установлен отдельно в подпапку sd-webui-forge-neo.</small></div><div class="install-location" id="forge-install-location" hidden><label for="forge-dir-dialog">Папка установленного Forge Neo</label><div class="path-control"><input id="forge-dir-dialog" type="text" readonly placeholder="Выберите папку с launch.py и venv" /><button id="browse-forge-dialog" class="secondary-button" type="button">Обзор...</button></div><small>Выберите папку пакета из Stability Matrix. Flow сохранит путь и будет использовать его готовое окружение.</small></div><section class="preflight" aria-live="polite"><h3>Проверка компьютера</h3><div id="preflight-checks" class="check-list">Проверяем окружение…</div></section><div class="modal-actions"><button class="secondary-button" id="cancel-install">Отменить</button><button class="primary-button" id="start-install">Начать установку</button></div></dialog>
+  <dialog class="modal glass-surface" id="install-dialog"><div class="modal-header"><div><span class="eyebrow">ДОБАВИТЬ ПАКЕТ</span><h2>Выберите WebUI</h2></div><button class="icon-button" id="close-install" aria-label="Закрыть">×</button></div><label class="install-package-label" for="install-package-type">Пакет</label><select id="install-package-type" class="install-package-select"><option value="comfyui-install">ComfyUI — установить отдельно</option><option value="forge-neo-install" selected>Forge Neo — установить отдельно</option><option value="forge-neo-import">Forge Neo — подключить существующий</option></select><p id="install-description">Flow скачает Forge Neo, подготовит Python 3.13 в отдельном окружении и установит зависимости. Ход установки появится в консоли.</p><div class="install-location" id="package-install-location"><label for="install-dir-dialog">Папка установки</label><div class="path-control"><input id="install-dir-dialog" type="text" readonly placeholder="Выберите папку" /><button id="browse-install-dialog" class="secondary-button" type="button">Обзор...</button></div><small id="install-folder-note">Forge Neo будет установлен отдельно в подпапку sd-webui-forge-neo.</small></div><div class="install-location" id="forge-install-location" hidden><label for="forge-dir-dialog">Папка установленного Forge Neo</label><div class="path-control"><input id="forge-dir-dialog" type="text" readonly placeholder="Выберите папку с launch.py и venv" /><button id="browse-forge-dialog" class="secondary-button" type="button">Обзор...</button></div><small>Выберите папку пакета из Stability Matrix. Flow сохранит путь и будет использовать его готовое окружение.</small></div><section class="preflight" aria-live="polite"><h3>Проверка компьютера</h3><div id="preflight-checks" class="check-list">Проверяем окружение…</div></section><div class="modal-actions"><button class="secondary-button" id="cancel-install">Отменить</button><button class="primary-button" id="start-install">Начать установку</button></div></dialog>
   <dialog class="modal glass-surface health-dialog" id="health-dialog" aria-labelledby="health-title"><div class="modal-header"><div><span class="eyebrow">ОБСЛУЖИВАНИЕ ПАКЕТА</span><h2 id="health-title">Проверка пакета</h2></div><button class="icon-button" id="close-health" type="button" aria-label="Закрыть">×</button></div><div id="health-checks" class="check-list" role="status" aria-live="polite">Проверяем…</div><div class="modal-actions"><button class="secondary-button" id="health-close" type="button">Закрыть</button></div></dialog>
   <dialog class="modal glass-surface webui-settings-modal" id="webui-settings-dialog" aria-labelledby="webui-settings-title">
     <div class="modal-header"><div><span class="eyebrow">ПАРАМЕТРЫ ПАКЕТА</span><h2 id="webui-settings-title">WebUI Settings</h2></div><button class="icon-button" id="close-webui-settings" type="button" aria-label="Закрыть настройки">×</button></div>
