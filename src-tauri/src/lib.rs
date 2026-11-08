@@ -605,6 +605,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             gpu_diagnostics::get_gpu_diagnostics,
             comfy::install_comfyui,
+            comfy::check_comfy_frame,
             set_generation_notifications,
             get_state,
             get_webui_status,
