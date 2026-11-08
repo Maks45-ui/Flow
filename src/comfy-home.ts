@@ -41,7 +41,7 @@ export class ComfyHome {
 
   open(raw: string): void {
     const url = localComfyUrl(raw);
-    if (this.url !== url || !this.frame.hasAttribute("src")) this.frame.src = url;
+    if (this.frame.getAttribute("src") !== url) this.frame.src = url;
     this.url = url;
     this.comfyButton.disabled = false;
     this.overview.hidden = true;
@@ -58,6 +58,8 @@ export class ComfyHome {
       this.url = null;
       this.frame.removeAttribute("src");
       this.showOverview();
+    } else {
+      this.url = localComfyUrl(running.readyUrl);
     }
   }
 }

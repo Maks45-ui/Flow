@@ -26,7 +26,8 @@ test('embeds inside Home, preserves the overview and clears the frame on stop', 
   const frame = document.querySelector('#comfy-frame');
   assert.equal(document.querySelector('#page-home').contains(frame), true);
   assert.equal(document.querySelector('#page-home').contains(overview), true);
-  view.open('http://127.0.0.1:8188');
+  view.sync([{ id: 'comfyui', running: true, stopping: false, readyUrl: 'http://127.0.0.1:8188' }]);
+  document.querySelector('#home-comfy-tab').click();
   assert.equal(home, 1);
   assert.equal(overview.hidden, true);
   assert.equal(document.querySelector('#comfy-panel').hidden, false);

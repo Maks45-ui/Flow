@@ -60,6 +60,8 @@ fn list_images(app: AppHandle) -> Result<Vec<GalleryImage>, String> {
             scan_directory(&directory, "txt2img", &mut images)?;
             app.asset_protocol_scope().allow_directory(&directory, true).map_err(|error| error.to_string())?;
         }
+        images.sort_unstable_by(|left, right| right.modified_at.cmp(&left.modified_at).then_with(|| left.path.cmp(&right.path)));
+        return Ok(images);
     }
     for (folder, kind) in [("txt2img-images", "txt2img"), ("img2img-images", "img2img")] {
         for root in ["outputs", "output"] {
@@ -85,6 +87,7 @@ fn gallery_roots(app: &AppHandle) -> Result<Vec<PathBuf>, String> {
     let mut roots = Vec::new();
     if crate::active_package(app)? == "comfyui" && package.join("output").is_dir() {
         roots.push(package.join("output").canonicalize().map_err(|error| error.to_string())?);
+        return Ok(roots);
     }
     for parent in ["outputs", "output"] {
         for folder in ["txt2img-images", "img2img-images"] {
