@@ -16,6 +16,7 @@ export interface PackageInfo {
 }
 
 export interface AppState {
+  generationNotificationsEnabled: boolean;
   packages: PackageInfo[];
   hasCivitaiToken: boolean;
   modelsPath: string;
@@ -166,6 +167,8 @@ export interface StorageReport {
   files: { path: string; name: string; sizeBytes: number; category: "models" | "outputs" | "packages" }[];
 }
 export interface FlowAPI {
+  setGenerationNotifications(enabled: boolean, language: "ru" | "en"): Promise<void>;
+  onGenerationComplete(callback: () => void): Promise<() => void>;
   openDiscordServer(): Promise<void>;
   inspectModelImport(path: string): Promise<ModelImportPreview>;
   importModelFile(path: string, modelType: string): Promise<string>;

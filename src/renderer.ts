@@ -1,5 +1,5 @@
 import { flowApi } from "./bridge";
-import { initializeLanguage, translate, getLocale } from "./i18n";
+import { initializeLanguage, translate, getLocale, getLanguage } from "./i18n";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -73,6 +73,27 @@ const modelManager = new ModelManager(
   () => { void downloadManager.restore().catch((error: unknown) => notify(message(error))); }
 );
 const workspaceTools = new WorkspaceTools(flowApi, () => { void modelManager.refresh(); }, notify);
+const generationNotificationToggle = element<HTMLInputElement>("generation-notifications");
+let generationNotificationPreferencesLoaded = false;
+generationNotificationToggle.addEventListener("change", async () => {
+  const enabled = generationNotificationToggle.checked;
+  generationNotificationToggle.disabled = true;
+  try { await flowApi.setGenerationNotifications(enabled, getLanguage()); }
+  catch {
+    generationNotificationToggle.checked = !enabled;
+    notify("Не удалось сохранить настройку уведомлений.");
+  }
+  finally { generationNotificationToggle.disabled = false; }
+});
+document.addEventListener("flow:language-changed", () => {
+  if (!generationNotificationPreferencesLoaded) return;
+  void flowApi.setGenerationNotifications(generationNotificationToggle.checked, getLanguage())
+    .catch((error: unknown) => notify(message(error)));
+});
+void flowApi.onGenerationComplete(() => {
+  void refreshHomeRecent();
+  if (document.body.dataset.page === "gallery") void refreshGallery();
+}).catch((error: unknown) => notify(message(error)));
 new ThemeController(
   element<HTMLElement>("theme-standard"),
   element<HTMLElement>("theme-extra"),
@@ -639,6 +660,13 @@ async function refreshState(): Promise<void> {
   try {
     const state = await window.flow.getState();
     if (sequence === stateSequence) {
+      if (!generationNotificationPreferencesLoaded) {
+        generationNotificationToggle.checked = state.generationNotificationsEnabled;
+        generationNotificationToggle.disabled = false;
+        generationNotificationPreferencesLoaded = true;
+        void flowApi.setGenerationNotifications(state.generationNotificationsEnabled, getLanguage())
+          .catch((error: unknown) => notify(message(error)));
+      }
       renderPackages(state);
       void refreshWebUIStatus();
     }

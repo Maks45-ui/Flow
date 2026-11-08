@@ -7,6 +7,8 @@ import type { AppState, CheckReport, DownloadedFile, FlowAPI, FlowUpdate, Galler
 
 // The UI only knows this typed contract. System access stays in Rust.
 const nativeFlowApi: FlowAPI = {
+  setGenerationNotifications: (enabled, language) => invoke<void>("set_generation_notifications", { enabled, language }),
+  onGenerationComplete: async (callback) => listen("flow:generation-complete", () => callback()),
   openDiscordServer: () => invoke<void>("open_discord_server"),
   inspectModelImport: (path: string) => invoke<ModelImportPreview>("inspect_model_import", { path }),
   importModelFile: (path: string, modelType: string) => invoke<string>("import_model_file", { path, modelType }),

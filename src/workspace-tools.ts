@@ -117,7 +117,7 @@ export class WorkspaceTools {
     try {
       await this.save(); this.profileStatus("Генерация идёт. Прогресс доступен на главной.");
       await this.api.generateWithProfile(this.model.value, node<HTMLTextAreaElement>("profile-prompt").value);
-      this.profileStatus("Изображение сохранено в результатах WebUI."); this.notify("Генерация завершена.");
+      this.profileStatus("Изображение сохранено в результатах WebUI.");
     } catch (error) { this.profileStatus(errorText(error)); }
     finally { button.disabled = false; }
   }
