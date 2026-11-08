@@ -1,7 +1,8 @@
 import { version } from "../package.json";
-import type { AppState, FlowAPI, PackageInfo, TaskEvent } from "./types";
-import { buildDiagnosticReport, diagnose, DiagnosticHistory, redactDiagnostics } from "./diagnostics";
+import type { AppState, FlowAPI, GpuDiagnostics, PackageInfo, TaskEvent } from "./types";
+import { buildDiagnosticReport, diagnose, DiagnosticHistory, primaryErrorMessage, redactDiagnostics } from "./diagnostics";
 import type { DiagnosticIncident, DiagnosticScope } from "./diagnostics";
+import { needsGpuCheck, withGpuFindings } from "./gpu-findings";
 
 const scopes: Partial<Record<keyof FlowAPI, DiagnosticScope>> = {
   installComfyUI: "install",
@@ -11,7 +12,7 @@ const scopes: Partial<Record<keyof FlowAPI, DiagnosticScope>> = {
   downloadModel: "download", pauseDownload: "download", cancelDownload: "download", listDownloads: "download", deleteDownload: "download"
 };
 const starts = new Set<keyof FlowAPI>(["installComfyUI", "installForgeNeo", "installXformers", "repairPackage", "updatePackage", "rollbackPackage", "launchWebUI", "searchModels", "downloadModel"]);
-const passive = new Set<keyof FlowAPI>(["getState", "getWebUIStatus", "getPreview", "setPage", "onTask", "getPreflight", "openDiagnosticSource"]);
+const passive = new Set<keyof FlowAPI>(["getGpuDiagnostics", "getState", "getWebUIStatus", "getPreview", "setPage", "onTask", "getPreflight", "openDiagnosticSource"]);
 const errorText = (error: unknown): string => error instanceof Error ? error.message : typeof error === "string" ? error : "Произошла неизвестная ошибка.";
 const scopeForTask = (event: TaskEvent): DiagnosticScope => event.kind === "xformers" ? "install" : event.kind;
 const cancelled = (message: string): boolean => /^(?:установка|загрузка) (?:отменена|приостановлена)\.?$/i.test(message.trim());
@@ -27,10 +28,10 @@ function required<T extends HTMLElement>(id: string): T {
   if (!el) throw new Error(`Не найден элемент диагностики: ${id}`);
   return el as T;
 }
-async function bounded<T>(promise: Promise<T>): Promise<T> {
+async function bounded<T>(promise: Promise<T>, timeout = 8000): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await Promise.race([promise, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Проверка окружения не завершилась за 8 секунд.")), 8000); })]);
+    return await Promise.race([promise, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(timeout === 8000 ? "Проверка окружения не завершилась за 8 секунд." : "Проверка устройств GPU превысила время ожидания.")), timeout); })]);
   } finally { if (timer !== undefined) clearTimeout(timer); }
 }
 
@@ -46,11 +47,13 @@ class ErrorHelpController {
   private readonly report = required<HTMLTextAreaElement>("error-help-report");
   private readonly status = required<HTMLElement>("error-help-status");
   private readonly copy = required<HTMLButtonElement>("copy-error-report");
+  private readonly retry = required<HTMLButtonElement>("retry-error-check");
   private readonly toast = required<HTMLElement>("toast");
   private readonly toastHelp = node("button", "diagnostics-toast-help", "Разобраться");
   private readonly buttons = [required<HTMLButtonElement>("console-error-help"), required<HTMLButtonElement>("settings-error-help")];
 
   constructor(private readonly api: FlowAPI) {
+    this.retry.addEventListener("click", () => { void this.open(); });
     this.toastHelp.type = "button";
     this.toastHelp.addEventListener("click", () => { void this.open(); });
     for (const button of this.buttons) button.addEventListener("click", () => { void this.open(); });
@@ -143,16 +146,19 @@ class ErrorHelpController {
     const packageId = this.incidentPackage;
     const generation = ++this.generation;
     this.renderFindings(incident);
-    required<HTMLElement>("error-help-message").textContent = incident.message;
+    required<HTMLElement>("error-help-message").textContent = primaryErrorMessage(incident);
     this.report.value = "Собираем доступные сведения об окружении…";
     this.copy.disabled = true;
+    this.retry.disabled = true;
     this.report.disabled = true;
     this.status.textContent = "Проверяем окружение локально. Это не запускает установку или ремонт.";
     if (!this.dialog.open) this.dialog.showModal();
-    const results = await Promise.allSettled([bounded(this.api.getState()), bounded(this.api.getPreflight(packageId)), bounded(this.api.getWebUIStatus())]);
+    const results = await Promise.allSettled([bounded(this.api.getState()), bounded(this.api.getPreflight(packageId)), bounded(this.api.getWebUIStatus()),
+      needsGpuCheck(incident) ? bounded(this.api.getGpuDiagnostics(), 18_000) : Promise.resolve(null)]);
     if (generation !== this.generation || !this.dialog.open) return;
     const environment = [`Flow: ${version}`, `Платформа WebView: ${navigator.platform}`, `Пакет ошибки: ${packageId}`];
-    const [state, checks, webui] = results;
+    const [state, checks, webui, gpu] = results;
+    let enriched = incident;
     if (state?.status === "fulfilled") {
       const pkg = state.value.packages.find(item => item.id === packageId);
       environment.push(pkg ? `Пакет: ${pkg.name}; версия: ${pkg.version}; управляется Flow: ${pkg.managed ? "да" : "нет"}` : "Пакет ещё не установлен или не найден.");
@@ -163,10 +169,40 @@ class ErrorHelpController {
       environment.push(`Локальный WebUI сейчас: ${webui.value.running ? "запущен" : "остановлен"}`);
       if (webui.value.vramTotalGb !== null) environment.push(`VRAM сейчас: ${webui.value.vramUsedGb ?? "?"} / ${webui.value.vramTotalGb} ГБ`);
     }
-    this.report.value = buildDiagnosticReport(incident, environment);
+    if (gpu?.status === "fulfilled" && gpu.value) {
+      const info = gpu.value;
+      environment.push(`Компьютер: ${info.manufacturer} ${info.model}`);
+      for (const device of info.devices) environment.push(`GPU: ${device.name}; Present=${device.present ?? "unknown"}; code=${device.problem ?? "unknown"}; status=${device.status}`);
+      if (info.error) environment.push(`Проверка устройств GPU недоступна: ${redactDiagnostics(info.error)}`);
+      enriched = withGpuFindings(incident, info);
+      this.renderFindings(enriched);
+      this.renderGpuCheck(info);
+    } else if (needsGpuCheck(incident)) {
+      const message = "Проверка устройств GPU недоступна или превысила время ожидания.";
+      environment.push(message);
+      this.renderGpuCheck({ manufacturer: "", model: "", devices: [], error: message });
+    }
+    this.report.value = buildDiagnosticReport(enriched, environment);
     this.report.disabled = false;
     this.copy.disabled = false;
+    this.retry.disabled = false;
     this.status.textContent = "Отчёт готов. Он никуда не отправлен. Проверьте и при необходимости отредактируйте текст перед копированием.";
+  }
+
+  private renderGpuCheck(info: GpuDiagnostics): void {
+    const card = node("section", "diagnostic-card");
+    card.append(node("h3", "", "Проверка устройств Windows"));
+    if (info.manufacturer || info.model) card.append(node("p", "", `${info.manufacturer} ${info.model}`));
+    for (const device of info.devices) {
+      const state = device.present === true ? "подключена" : device.present === false ? "не подключена" : "нет данных о подключении";
+      card.append(node("p", "diagnostic-fact", `${device.name} — ${state}; код: ${device.problem ?? "—"}`));
+    }
+    if (info.error) card.append(node("p", "", redactDiagnostics(info.error)));
+    else if (info.devices.some(device => /nvidia/i.test(device.name) && device.present && device.problem === 0)) {
+      card.append(node("p", "", "Windows видит NVIDIA без ошибки устройства. Это ещё не проверка CUDA: повторите установку или проверьте совместимость драйвера."));
+    }
+    card.append(node("p", "", "Состояние проверено сейчас. Журнал ошибки мог быть создан раньше."));
+    this.findings.append(card);
   }
 }
 

@@ -1,12 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { withErrorHelp } from "./error-help";
-import type { ModelImportPreview, ModelProfile, StorageReport } from "./types";
+import type { GpuDiagnostics, ModelImportPreview, ModelProfile, StorageReport } from "./types";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AppState, CheckReport, DownloadedFile, FlowAPI, FlowUpdate, GalleryImage, GalleryImageDetails, GenerationProgress, InstalledModel, ModelFile, ModelSummary, PackageInfo, Page, StarterModel, TaskEvent, WebUISettings, WebUIStatus } from "./types";
 
 // The UI only knows this typed contract. System access stays in Rust.
 const nativeFlowApi: FlowAPI = {
+  getGpuDiagnostics: () => invoke<GpuDiagnostics>("get_gpu_diagnostics"),
   installComfyUI: (installationDir) => invoke<void>("install_comfyui", { installationDir }),
   onComfyOpen: async (callback) => listen<string>("flow:comfy-open", event => callback(event.payload)),
   setGenerationNotifications: (enabled, language) => invoke<void>("set_generation_notifications", { enabled, language }),

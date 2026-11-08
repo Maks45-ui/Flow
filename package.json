@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "check": "tsc --noEmit",
-    "test:diagnostics": "node --test tests/diagnostics.test.mjs",
+    "test:diagnostics": "node --test tests/diagnostics.test.mjs tests/error-help-ui.test.mjs",
     "test:i18n": "node --test tests/i18n.test.mjs",
     "test:comfy": "node --test tests/comfy-home.test.mjs",
     "build": "pnpm run check && vite build",

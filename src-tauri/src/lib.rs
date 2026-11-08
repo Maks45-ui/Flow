@@ -2,6 +2,7 @@ mod civitai;
 mod discord;
 mod gallery;
 mod generation;
+mod gpu_diagnostics;
 mod comfy;
 mod installer;
 mod paths;
@@ -513,6 +514,9 @@ fn open_discord_server(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn open_diagnostic_source(app: AppHandle, url: String) -> Result<(), String> {
     const SOURCES: &[&str] = &[
+        "https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html",
+        "https://support.microsoft.com/en-gb/windows/hardware/drivers/error-codes-in-device-manager-in-windows",
+        "https://www.asus.com/support/faq/1047107/",
         "https://docs.pytorch.org/docs/stable/notes/cuda.html#memory-management",
         "https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--1300-1699-",
         "https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-",
@@ -599,6 +603,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            gpu_diagnostics::get_gpu_diagnostics,
             comfy::install_comfyui,
             set_generation_notifications,
             get_state,
