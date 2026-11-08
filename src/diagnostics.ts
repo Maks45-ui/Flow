@@ -18,6 +18,24 @@ const checkedOn = "2026-11-04";
 const civitaiSource = { label: "Civitai · коды ошибок API", url: "https://developer.civitai.com/site/guide/errors" };
 export const DIAGNOSTIC_RULES: readonly DiagnosticRule[] = [
   {
+    id: "cuda-driver", title: "Драйвер не поддерживает установленную CUDA",
+    fact: "PyTorch сообщил о несовместимом или слишком старом видеодрайвере.",
+    cause: "Версия драйвера не подходит установленной сборке PyTorch/CUDA. Переустановка той же сборки PyTorch сама по себе это не исправляет.",
+    steps: ["Проверьте версию драйвера NVIDIA и версию CUDA в установленном PyTorch.", "Для CUDA 13.x требуется драйвер ветки 580 или новее. Обновите подходящий драйвер NVIDIA и перезагрузите Windows.", "Повторите установку пакета в той же папке после восстановления доступа к GPU."],
+    source: { label: "NVIDIA · совместимость CUDA и драйверов", url: "https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html" },
+    checkedOn: "2026-11-08", appliesTo: "Явные сообщения CUDA/PyTorch о несовместимом драйвере.", scopes: ["install", "launch"],
+    pattern: /(?:CUDA driver version is insufficient|NVIDIA driver.*too old|driver on your system is too old|Please update your GPU driver or manually install older version of PyTorch)/i
+  },
+  {
+    id: "gpu-unavailable", title: "PyTorch не видит доступную видеокарту",
+    fact: "Проверка GPU завершилась ошибкой до загрузки модели.",
+    cause: "Видеокарта может быть отключена режимом энергосбережения, недоступна Windows или не работать с текущим драйвером. По одной строке ошибки точную причину определить нельзя.",
+    steps: ["Проверьте состояние видеокарты в результатах проверки устройств ниже.", "На ноутбуке подключите питание и проверьте режим дискретной видеокарты в фирменной утилите.", "Если видеокарта подключена без ошибок, проверьте её драйвер и совместимость со сборкой PyTorch/CUDA.", "После восстановления доступа к GPU продолжите установку в той же папке. Уже скачанные файлы сохранятся."],
+    source: { label: "Microsoft · коды устройств Windows", url: "https://support.microsoft.com/en-gb/windows/hardware/drivers/error-codes-in-device-manager-in-windows" },
+    checkedOn: "2026-11-08", appliesTo: "Forge Neo, ComfyUI и PyTorch; ошибка доступности GPU, не CUDA OutOfMemory.", scopes: ["install", "launch"],
+    pattern: /(?:PyTorch is not able to access any compute device\s*\(GPU\)|No CUDA GPUs are available|Found no NVIDIA driver on your system|ComfyUI requires a working NVIDIA CUDA driver)/i
+  },
+  {
     id: "cuda-memory", title: "Не хватило видеопамяти",
     fact: "Обнаружена сигнатура ошибки CUDA OutOfMemory.",
     cause: "Текущей операции не хватило доступной памяти GPU. Это не доказывает неисправность видеокарты.",
@@ -119,6 +137,12 @@ export interface DiagnosticIncident {
   occurredAt: string;
   lines: readonly string[];
   matches: readonly DiagnosticMatch[];
+}
+
+/** Prefer the actual traceback/pip error over a wrapper such as exit code 1. */
+export function primaryErrorMessage(incident: DiagnosticIncident): string {
+  return incident.matches[0]?.evidence ?? [...incident.lines].reverse()
+    .find(line => /\b(?:[\w.]+(?:Error|Exception)|ERROR|fatal):/i.test(line)) ?? incident.message;
 }
 
 export class DiagnosticHistory {

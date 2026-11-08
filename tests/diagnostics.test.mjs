@@ -1,7 +1,49 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { DIAGNOSTIC_RULES, DiagnosticHistory, diagnose, redactDiagnostics, buildDiagnosticReport } from '../src/diagnostics.ts';
+import { DIAGNOSTIC_RULES, DiagnosticHistory, diagnose, primaryErrorMessage, redactDiagnostics, buildDiagnosticReport } from '../src/diagnostics.ts';
+import { withGpuFindings } from '../src/gpu-findings.ts';
+
+test('provided Forge exit-code report finds the actual GPU error in its traceback', () => {
+  const incident = new DiagnosticHistory();
+  incident.record('install', 'Successfully installed torch-2.14.0+cu130');
+  incident.record('install', 'RuntimeError: PyTorch is not able to access any compute device (GPU)');
+  const result = incident.capture('install', 'Команда завершилась с кодом Some(1).');
+  assert.equal(result.matches[0]?.rule.id, 'gpu-unavailable');
+  assert.match(result.matches[0]?.evidence, /PyTorch is not able/);
+  assert(!result.matches.some(match => match.rule.id === 'cuda-memory'));
+});
+
+test('CUDA driver errors have their own diagnosis and GPU errors do not match unrelated scopes', () => {
+  assert.equal(diagnose('install', 'CUDA driver version is insufficient for CUDA runtime version', [])[0]?.rule.id, 'cuda-driver');
+  assert.equal(diagnose('launch', 'No CUDA GPUs are available', [])[0]?.rule.id, 'gpu-unavailable');
+  assert.equal(diagnose('catalog', 'No CUDA GPUs are available', []).length, 0);
+});
+
+test('missing ASUS NVIDIA gets evidence-based steps without claiming to have detected Eco Mode', () => {
+  const incident = new DiagnosticHistory().capture('install', 'No CUDA GPUs are available');
+  const info = { manufacturer:'ASUSTeK COMPUTER INC.', model:'TUF F15', error:null, devices:[
+    {name:'NVIDIA RTX 3050',present:false,problem:45,status:'Unknown'},
+    {name:'Intel Iris Xe',present:true,problem:0,status:'OK'}
+  ]};
+  const result = withGpuFindings(incident, info);
+  assert.equal(result.matches[0]?.rule.id, 'gpu-device-state');
+  assert.match(result.matches[0]?.evidence, /code=45/);
+  assert.match(result.matches[0]?.rule.cause, /автоматически не определён/);
+  assert(result.matches[0]?.rule.steps.some(step => step.includes('Standard')));
+  const restored = withGpuFindings(incident, { ...info, devices:[{name:'NVIDIA RTX 3050',present:true,problem:0,status:'OK'}] });
+  assert.equal(restored.matches[0]?.rule.id, 'gpu-unavailable');
+  assert.equal(withGpuFindings(incident, {...info,error:'Access denied'}), incident);
+  assert.equal(withGpuFindings(incident, {...info,devices:[...info.devices,{name:'NVIDIA RTX 3050',present:true,problem:0,status:'OK'}]}), incident);
+});
+
+test('unknown errors still show their real exception instead of a bare process exit code', () => {
+  const history = new DiagnosticHistory();
+  history.record('install', 'ModuleNotFoundError: No module named custom_module');
+  const incident = history.capture('install', 'Команда завершилась с кодом Some(1).');
+  assert.match(primaryErrorMessage(incident), /ModuleNotFoundError/);
+  assert.equal(incident.matches.length, 0);
+});
 
 for (const [id, scope, input] of [
   ['cuda-memory', 'launch', 'torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 2 GiB'],

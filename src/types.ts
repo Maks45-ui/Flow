@@ -30,6 +30,13 @@ export interface CheckEntry {
   level: "ok" | "warning" | "error" | "info";
 }
 
+export interface GpuDiagnostics {
+  manufacturer: string;
+  model: string;
+  devices: { name: string; present: boolean | null; problem: number | null; status: string }[];
+  error: string | null;
+}
+
 export interface CheckReport {
   title: string;
   checks: CheckEntry[];
@@ -168,6 +175,7 @@ export interface StorageReport {
   files: { path: string; name: string; sizeBytes: number; category: "models" | "outputs" | "packages" }[];
 }
 export interface FlowAPI {
+  getGpuDiagnostics(): Promise<GpuDiagnostics>;
   installComfyUI(installationDir: string): Promise<void>;
   onComfyOpen(callback: (url: string) => void): Promise<() => void>;
   setGenerationNotifications(enabled: boolean, language: "ru" | "en"): Promise<void>;
