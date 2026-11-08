@@ -1,5 +1,9 @@
 /** UTF-8 source copy → English. Product names, paths and process logs stay unchanged. */
 export const english: Readonly<Record<string, string>> = {
+  "Уведомления о генерации": "Generation notifications",
+  "Показывать уведомление Windows, когда изображение готово, даже если Flow свёрнут.": "Show a Windows notification when your image is ready, even while Flow is minimized.",
+  "Генерация завершена. Изображение готово!": "Generation complete. Your image is ready!",
+  "Не удалось сохранить настройку уведомлений.": "Could not save the notification preference.",
   "Добавить установленную модель": "Add existing WebUI",
   "Выберите папку установленного Forge Neo с launch.py и venv": "Choose the installed Forge Neo folder containing launch.py and venv",
   "Подключение Forge Neo…": "Connecting Forge Neo…",
