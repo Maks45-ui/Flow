@@ -2,7 +2,7 @@ export type Page = "home" | "gallery" | "models" | "manage-models" | "settings";
 export type TaskPhase = "idle" | "checking" | "cloning" | "venv" | "dependencies" | "verifying" | "starting" | "stabilizing" | "ready" | "running" | "stopping" | "log" | "model_error" | "paused" | "done" | "error" | "cancelled";
 
 export interface PackageInfo {
-  id: "automatic1111" | "forge-neo" | "comfyui";
+  id: "automatic1111" | "forge-neo" | "amdgpu-forge";
   name: string;
   version: string;
   path: string;
@@ -175,7 +175,7 @@ export interface StorageReport {
 }
 export interface FlowAPI {
   getGpuDiagnostics(): Promise<GpuDiagnostics>;
-  installComfyUI(installationDir: string): Promise<void>;
+  installAmdgpuForge(installationDir: string): Promise<void>;
   onGenerationComplete(callback: () => void): Promise<() => void>;
   openDiscordServer(): Promise<void>;
   inspectModelImport(path: string): Promise<ModelImportPreview>;

@@ -250,7 +250,7 @@ async function refreshPreflight(): Promise<void> {
   if (importForge) return;
   target.textContent = "Проверяем окружение…";
   try {
-    const report = await window.flow.getPreflight(installPackageType.value === "comfyui-install" ? "comfyui" : "forge-neo");
+    const report = await window.flow.getPreflight(installPackageType.value === "amdgpu-forge-install" ? "amdgpu-forge" : "forge-neo");
     if (request !== preflightSequence || !installDialog.open) return;
     renderChecks(target, report);
     element<HTMLButtonElement>("start-install").disabled = !report.canProceed;
@@ -386,20 +386,20 @@ function addWebuiArgument(raw: string): boolean {
 }
 
 async function openWebuiSettings(): Promise<void> {
-  const comfy = activePackageId === "comfyui";
-  element<HTMLElement>("webui-settings-title").textContent = comfy ? "ComfyUI Settings" : "WebUI Settings";
-  webuiArgInput.placeholder = comfy ? "Например, --lowvram или --cpu" : "Например, --lowvram или --theme dark";
+  const amd = activePackageId === "amdgpu-forge";
+  element<HTMLElement>("webui-settings-title").textContent = amd ? "AMDGPU Forge Settings" : "WebUI Settings";
+  webuiArgInput.placeholder = amd ? "Например, --directml 1 или --always-low-vram" : "Например, --lowvram или --theme dark";
   const memoryCard = document.querySelector<HTMLElement>(".webui-memory-card");
   if (memoryCard) {
-    memoryCard.hidden = comfy;
+    memoryCard.hidden = false;
     const forge = activePackageId !== "automatic1111";
     memoryCard.querySelectorAll<HTMLElement>(".webui-memory-presets, .webui-memory-toggle, .webui-xformers, .webui-memory-a1111").forEach((item) => { item.hidden = forge; });
     const advice = element<HTMLElement>("webui-memory-advice");
-    advice.textContent = forge
+    advice.textContent = amd ? "DirectML использует драйвер DirectX 12. CUDA и xformers не применяются; Forge управляет памятью самостоятельно." : forge
       ? "Forge Neo управляет выгрузкой моделей самостоятельно. На 4 ГБ VRAM начинайте с 768 × 768 и увеличивайте размер постепенно."
       : "Определяю доступную видеопамять…";
     if (!forge) void window.flow.getPreflight("automatic1111").then((report) => {
-      if (!webuiSettingsDialog.open || activePackageId === "forge-neo") return;
+      if (!webuiSettingsDialog.open || activePackageId !== "automatic1111") return;
       const gpu = report.checks.find((check) => check.label === "Видеокарта");
       const mib = gpu?.value.match(/(\d+) МиБ VRAM/);
       const amount = mib ? Number(mib[1]) : null;
@@ -410,7 +410,7 @@ async function openWebuiSettings(): Promise<void> {
     }).catch(() => { advice.textContent = "Не удалось определить VRAM. Профиль можно выбрать вручную."; });
   }
   document.querySelectorAll<HTMLButtonElement>(".webui-quick-arg").forEach((button) => {
-    button.hidden = comfy ? button.dataset.argument !== "--lowvram"
+    button.hidden = amd ? !["--api", "--listen"].includes(button.dataset.argument ?? "")
       : activePackageId === "forge-neo" && button.dataset.argument !== "--xformers"
         && button.dataset.argument !== "--api" && button.dataset.argument !== "--listen";
   });
@@ -467,7 +467,7 @@ function renderPackages(state: AppState): void {
   const activePackage = state.packages.find((item) => item.active) ?? state.packages[0];
   activePackageId = activePackage?.id ?? "automatic1111";
   const profilePanel = element<HTMLElement>("model-profile-form").closest<HTMLElement>("section");
-  if (profilePanel) profilePanel.hidden = activePackageId === "comfyui";
+  if (profilePanel) profilePanel.hidden = false;
   element<HTMLElement>("runtime-package").textContent = activePackage?.name ?? "Пакет не выбран";
   hasWebuiPackage = count > 0;
   webuiRunning = state.packages.some((item) => item.running);
@@ -492,8 +492,8 @@ function renderPackages(state: AppState): void {
     const details = make("div", "package-details");
     const titleRow = make("div", "package-title-row");
     titleRow.append(make("h3", "", item.name));
-    details.append(titleRow, make("p", "package-description", item.id === "comfyui"
-      ? "Редактор рабочих процессов генерации с открытием в браузере."
+    details.append(titleRow, make("p", "package-description", item.id === "amdgpu-forge"
+      ? "Stable Diffusion WebUI для AMD через DirectML. Отдельное окружение Python 3.10."
       : item.id === "forge-neo"
       ? "Универсальный пакет для генерации изображений с поддержкой SDXL, Flux и расширений."
       : "Пакет Stable Diffusion WebUI для генерации изображений и работы с моделями."));
@@ -530,7 +530,7 @@ function renderPackages(state: AppState): void {
         await refreshState();
       }
     });
-    const open = make("button", "secondary-button", item.id === "comfyui" ? "Открыть ComfyUI в браузере" : "Открыть WebUI в браузере");
+    const open = make("button", "secondary-button", "Открыть WebUI в браузере");
     open.type = "button";
     open.disabled = !item.readyUrl || item.stopping;
     if (item.readyUrl) open.title = item.readyUrl;
@@ -614,14 +614,14 @@ function renderPackages(state: AppState): void {
         await refreshState();
       } catch (error) { notify(message(error)); linkModels.disabled = false; }
     });
-    if (item.id !== "comfyui") moreMenu.append(linkModels);
+    moreMenu.append(linkModels);
     const restart = make("button", "secondary-button package-restart", "Перезапустить");
     restart.type = "button";
     restart.dataset.packageId = item.id;
     restart.disabled = !item.running || item.stopping || installing || webuiControlBusy;
     restart.addEventListener("click", () => void controlWebui(true));
     moreMenu.append(restart);
-    if (item.managed && item.id !== "comfyui") {
+    if (item.managed) {
       const check = make("button", "secondary-button", "Проверить");
       check.type = "button";
       check.addEventListener("click", () => void showPackageHealth(item));
@@ -1354,15 +1354,15 @@ element<HTMLButtonElement>("add-package").addEventListener("click", () => {
 });
 installPackageType.addEventListener("change", () => {
   const importForge = installPackageType.value === "forge-neo-import";
-  const comfy = installPackageType.value === "comfyui-install";
+  const amd = installPackageType.value === "amdgpu-forge-install";
   element<HTMLElement>("package-install-location").hidden = importForge;
   element<HTMLElement>("forge-install-location").hidden = !importForge;
   element<HTMLElement>("install-description").textContent = importForge
     ? "Подключите готовый Forge Neo из Stability Matrix. В Stability Matrix откройте папку пакета через меню «⋮» и остановите его перед запуском в Flow."
-    : comfy ? "Flow установит ComfyUI в отдельное окружение Python 3.13 с PyTorch CUDA. Редактор откроется в браузере."
+    : amd ? "Flow установит WebUI AMDGPU Forge с Python 3.10 и DirectML. Нужна Windows и видеокарта с DirectX 12."
       : "Flow скачает Forge Neo, подготовит Python 3.13 в отдельном окружении и установит зависимости. Ход установки появится в консоли.";
-  element<HTMLElement>("install-folder-note").textContent = comfy
-    ? "ComfyUI будет установлен отдельно в подпапку ComfyUI. Требуется NVIDIA с актуальным драйвером CUDA."
+  element<HTMLElement>("install-folder-note").textContent = amd
+    ? "AMDGPU Forge будет установлен отдельно в подпапку sd-webui-amdgpu-forge."
     : "Forge Neo будет установлен отдельно в подпапку sd-webui-forge-neo.";
   element<HTMLButtonElement>("start-install").textContent = importForge ? "Подключить Forge Neo" : "Начать установку";
   element<HTMLButtonElement>("start-install").disabled = !importForge;
@@ -1383,14 +1383,14 @@ element<HTMLButtonElement>("start-install").addEventListener("click", async () =
     return;
   }
   if (!installationDir) { notify("Сначала выберите папку установки."); return; }
-  installingPackageId = installPackageType.value === "comfyui-install" ? "comfyui" : "forge-neo";
+  installingPackageId = installPackageType.value === "amdgpu-forge-install" ? "amdgpu-forge" : "forge-neo";
   setInstalling(true);
   installDialog.close();
   openHomeConsole();
   setConsoleStatus("Установка", "running");
-  queueLog(terminal, `[Установка] Начало установки ${installingPackageId === "comfyui" ? "ComfyUI" : "Forge Neo"}...`);
+  queueLog(terminal, `[Установка] Начало установки ${installingPackageId === "amdgpu-forge" ? "AMDGPU Forge" : "Forge Neo"}...`);
   try {
-    if (installingPackageId === "comfyui") await window.flow.installComfyUI(installationDir);
+    if (installingPackageId === "amdgpu-forge") await window.flow.installAmdgpuForge(installationDir);
     else await window.flow.installForgeNeo(installationDir);
   }
   catch (error) {

@@ -5,13 +5,13 @@ import type { DiagnosticIncident, DiagnosticScope } from "./diagnostics";
 import { needsGpuCheck, withGpuFindings } from "./gpu-findings";
 
 const scopes: Partial<Record<keyof FlowAPI, DiagnosticScope>> = {
-  installComfyUI: "install",
+  installAmdgpuForge: "install",
   installForgeNeo: "install", installXformers: "install", repairPackage: "install", updatePackage: "install", rollbackPackage: "install",
   launchWebUI: "launch", stopWebUI: "launch", openWebUI: "launch", checkXformers: "install",
   searchModels: "catalog", getStarterModel: "catalog", saveCivitaiToken: "catalog", saveOnboardingToken: "catalog",
   downloadModel: "download", pauseDownload: "download", cancelDownload: "download", listDownloads: "download", deleteDownload: "download"
 };
-const starts = new Set<keyof FlowAPI>(["installComfyUI", "installForgeNeo", "installXformers", "repairPackage", "updatePackage", "rollbackPackage", "launchWebUI", "searchModels", "downloadModel"]);
+const starts = new Set<keyof FlowAPI>(["installAmdgpuForge", "installForgeNeo", "installXformers", "repairPackage", "updatePackage", "rollbackPackage", "launchWebUI", "searchModels", "downloadModel"]);
 const passive = new Set<keyof FlowAPI>(["getGpuDiagnostics", "getState", "getWebUIStatus", "getPreview", "setPage", "onTask", "getPreflight", "openDiagnosticSource"]);
 const errorText = (error: unknown): string => error instanceof Error ? error.message : typeof error === "string" ? error : "Произошла неизвестная ошибка.";
 const scopeForTask = (event: TaskEvent): DiagnosticScope => event.kind === "xformers" ? "install" : event.kind;
@@ -80,8 +80,8 @@ class ErrorHelpController {
   begin(scope: DiagnosticScope, method?: keyof FlowAPI, args: readonly unknown[] = []): void {
     this.history.begin(scope);
     this.active.add(scope);
-    const explicit = method === "installComfyUI" ? "comfyui" : method === "installForgeNeo" ? "forge-neo" : args[0];
-    this.operationPackages.set(scope, explicit === "comfyui" || explicit === "forge-neo" || explicit === "automatic1111" ? explicit : this.packageId);
+    const explicit = method === "installAmdgpuForge" ? "amdgpu-forge" : method === "installForgeNeo" ? "forge-neo" : args[0];
+    this.operationPackages.set(scope, explicit === "amdgpu-forge" || explicit === "forge-neo" || explicit === "automatic1111" ? explicit : this.packageId);
   }
 
   capture(scope: DiagnosticScope, message: string): void {
@@ -154,7 +154,7 @@ class ErrorHelpController {
     this.status.textContent = "Проверяем окружение локально. Это не запускает установку или ремонт.";
     if (!this.dialog.open) this.dialog.showModal();
     const results = await Promise.allSettled([bounded(this.api.getState()), bounded(this.api.getPreflight(packageId)), bounded(this.api.getWebUIStatus()),
-      needsGpuCheck(incident) ? bounded(this.api.getGpuDiagnostics(), 18_000) : Promise.resolve(null)]);
+      packageId !== "amdgpu-forge" && needsGpuCheck(incident) ? bounded(this.api.getGpuDiagnostics(), 18_000) : Promise.resolve(null)]);
     if (generation !== this.generation || !this.dialog.open) return;
     const environment = [`Flow: ${version}`, `Платформа WebView: ${navigator.platform}`, `Пакет ошибки: ${packageId}`];
     const [state, checks, webui, gpu] = results;
@@ -177,7 +177,7 @@ class ErrorHelpController {
       enriched = withGpuFindings(incident, info);
       this.renderFindings(enriched);
       this.renderGpuCheck(info);
-    } else if (needsGpuCheck(incident)) {
+    } else if (packageId !== "amdgpu-forge" && needsGpuCheck(incident)) {
       const message = "Проверка устройств GPU недоступна или превысила время ожидания.";
       environment.push(message);
       this.renderGpuCheck({ manufacturer: "", model: "", devices: [], error: message });

@@ -146,9 +146,7 @@ fn model_roots(app: &AppHandle) -> Result<Vec<ModelRoot>, String> {
     let mut roots = Vec::new();
     let mut seen = HashSet::new();
     for (base, source) in bases {
-        let folders = if source == "Активный пакет" && crate::active_package(app)? == "comfyui" {
-            [("checkpoints", "Checkpoint"), ("loras", "LoRA"), ("vae", "VAE")]
-        } else { MODEL_FOLDERS };
+        let folders = MODEL_FOLDERS;
         for (folder, model_type) in folders {
             let path = base.join(folder);
             if !path.is_dir() { continue; }

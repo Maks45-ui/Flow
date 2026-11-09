@@ -82,7 +82,7 @@ fn environment_checks(app: &AppHandle, parent: &Path, package_id: &str) -> Vec<C
     let git = installer::command_output(app, "git", &["--version".to_owned()]);
     match git {
         Ok(version) => checks.push(entry("Git", version, "ok")),
-        Err(_) if matches!(package_id, "forge-neo" | "comfyui") && cfg!(windows) => checks.push(entry("Git", "Flow скачает проверенную копию Git при установке", "info")),
+        Err(_) if matches!(package_id, "forge-neo" | "amdgpu-forge") && cfg!(windows) => checks.push(entry("Git", "Flow скачает проверенную копию Git при установке", "info")),
         Err(_) => checks.push(entry("Git", "Не найден — установка невозможна", "error")),
     }
     if package_id == "automatic1111" {
@@ -96,7 +96,7 @@ fn environment_checks(app: &AppHandle, parent: &Path, package_id: &str) -> Vec<C
         let uv = quiet_output("uv", &["--version"], None).is_ok()
             || installer::venv_python(&parent.join("sd-webui-forge-neo")).is_file()
             || installation_dir(app).ok().is_some_and(|root| root.join(".flow-tools/uv/uv.exe").is_file());
-        checks.push(entry("Python/uv", if uv { "Python-менеджер готов" } else { "Flow скачает uv и Python 3.13 при установке" }, "info"));
+        checks.push(entry("Python/uv", if uv { "Python-менеджер готов" } else if package_id == "amdgpu-forge" { "Flow скачает uv и Python 3.10 при установке" } else { "Flow скачает uv и Python 3.13 при установке" }, "info"));
     }
     #[cfg(windows)] {
         if let Some((disk, ram, free_commit, limit)) = windows_resources(parent) {
@@ -106,6 +106,10 @@ fn environment_checks(app: &AppHandle, parent: &Path, package_id: &str) -> Vec<C
             let pagefile = (limit - ram).max(0.0);
             checks.push(entry("Файл подкачки", format!("≈ {pagefile:.1} ГБ выделено Windows"), if pagefile < 16.0 { "warning" } else { "ok" }));
         } else { checks.push(entry("Память и диск", "Не удалось прочитать системные показатели", "warning")); }
+    }
+    if package_id == "amdgpu-forge" {
+        checks.push(entry("DirectML", "Windows 10/11 и видеокарта с DirectX 12. Проверка GPU выполняется при установке; CUDA не требуется.", if cfg!(windows) { "info" } else { "error" }));
+        return checks;
     }
     let gpu = quiet_output("nvidia-smi", &["--query-gpu=name,memory.total,driver_version", "--format=csv,noheader,nounits"], None);
     match gpu {
@@ -121,7 +125,7 @@ fn environment_checks(app: &AppHandle, parent: &Path, package_id: &str) -> Vec<C
 
 #[tauri::command]
 pub(crate) async fn get_preflight(app: AppHandle, package_id: String) -> Result<CheckReport, String> {
-    if !matches!(package_id.as_str(), "automatic1111" | "forge-neo" | "comfyui") { return Err("Неизвестный пакет.".to_owned()); }
+    if !matches!(package_id.as_str(), "automatic1111" | "forge-neo" | "amdgpu-forge") { return Err("Неизвестный пакет.".to_owned()); }
     tauri::async_runtime::spawn_blocking(move || {
         let parent = installation_dir(&app)?;
         let checks = environment_checks(&app, &parent, &package_id);
@@ -135,6 +139,7 @@ fn managed_package(app: &AppHandle, package_id: &str) -> Result<(PathBuf, PathBu
     let directory = match package_id {
         "automatic1111" => parent.join("sd-webui"),
         "forge-neo" => parent.join("sd-webui-forge-neo"),
+        "amdgpu-forge" => parent.join(crate::amdgpu::FOLDER),
         _ => return Err("Неизвестный пакет.".to_owned()),
     };
     if !directory.join(".flow-installed.json").is_file() {
@@ -149,7 +154,7 @@ pub(crate) async fn check_package(app: AppHandle, package_id: String) -> Result<
         let (_, directory) = managed_package(&app, &package_id)?;
         let mut checks = environment_checks(&app, &directory, &package_id);
         checks.push(entry("Файлы WebUI", if directory.join("launch.py").is_file() { "launch.py найден" } else { "launch.py отсутствует" }, if directory.join("launch.py").is_file() { "ok" } else { "error" }));
-        if package_id == "forge-neo" {
+        if matches!(package_id.as_str(), "forge-neo" | "amdgpu-forge") {
             checks.push(entry("Forge", if directory.join("modules_forge").is_dir() { "Модули найдены" } else { "Модули отсутствуют" }, if directory.join("modules_forge").is_dir() { "ok" } else { "error" }));
         }
         let python = installer::venv_python(&directory);
@@ -170,7 +175,7 @@ pub(crate) async fn check_package(app: AppHandle, package_id: String) -> Result<
         let git_dir = directory.to_string_lossy().into_owned();
         let git_exe = crate::managed_tools::git_program(&app);
         let origin = quiet_output(&git_exe.to_string_lossy(), &["-C", &git_dir, "remote", "get-url", "origin"], None).unwrap_or_default();
-        let expected = if package_id == "forge-neo" { "Haoming02/sd-webui-forge-classic" } else { "AUTOMATIC1111/stable-diffusion-webui" };
+        let expected = if package_id == "amdgpu-forge" { "lshqqytiger/stable-diffusion-webui-amdgpu-forge" } else if package_id == "forge-neo" { "Haoming02/sd-webui-forge-classic" } else { "AUTOMATIC1111/stable-diffusion-webui" };
         checks.push(entry("Исходный репозиторий", if origin.is_empty() { "Не найден" } else { &origin }, if origin.contains(expected) { "ok" } else { "error" }));
         if let Ok(dir) = data_dir(&app) {
             let logs = dir.join("logs");
@@ -181,7 +186,7 @@ pub(crate) async fn check_package(app: AppHandle, package_id: String) -> Result<
             }
         }
         let can_proceed = !checks.iter().any(|item| item.level == "error");
-        Ok(CheckReport { title: format!("Проверка {}", if package_id == "forge-neo" { "Forge Neo" } else { "AUTOMATIC1111" }), checks, can_proceed })
+        Ok(CheckReport { title: format!("Проверка {}", if package_id == "amdgpu-forge" { "AMDGPU Forge" } else if package_id == "forge-neo" { "Forge Neo" } else { "AUTOMATIC1111" }), checks, can_proceed })
     }).await.map_err(|error| error.to_string())?
 }
 
@@ -204,7 +209,7 @@ fn safe_revision(revision: &str) -> bool {
 fn run_maintenance(app: &AppHandle, control: &installer::InstallControl, package_id: &str, action: &str) -> Result<(), String> {
     let (parent, directory) = managed_package(app, package_id)?;
     crate::managed_tools::ensure_git(app, control, &parent)?;
-    let expected = if package_id == "forge-neo" { "https://github.com/Haoming02/sd-webui-forge-classic" } else { "https://github.com/AUTOMATIC1111/stable-diffusion-webui" };
+    let expected = if package_id == "amdgpu-forge" { crate::amdgpu::REPOSITORY.trim_end_matches(".git") } else if package_id == "forge-neo" { "https://github.com/Haoming02/sd-webui-forge-classic" } else { "https://github.com/AUTOMATIC1111/stable-diffusion-webui" };
     let dir = directory.to_string_lossy().into_owned();
     let remote = git(app, &["-C".into(), dir.clone(), "remote".into(), "get-url".into(), "origin".into()])?;
     if remote.trim_end_matches(".git").trim_end_matches('/') != expected {
@@ -217,7 +222,7 @@ fn run_maintenance(app: &AppHandle, control: &installer::InstallControl, package
     if action == "update" {
         let previous = git(app, &["-C".into(), dir.clone(), "rev-parse".into(), "HEAD".into()])?;
         if !safe_revision(&previous) { return Err("Не удалось определить текущую ревизию пакета.".to_owned()); }
-        let branch = if package_id == "forge-neo" { "neo" } else { "HEAD" };
+        let branch = if package_id == "amdgpu-forge" { "main" } else if package_id == "forge-neo" { "neo" } else { "HEAD" };
         installer::run_logged(app, control, "git", &["fetch".into(), "--progress".into(), "origin".into(), branch.into()], &directory, None)?;
         let newest = git(app, &["-C".into(), dir.clone(), "rev-parse".into(), "FETCH_HEAD".into()])?;
         if newest == previous {
@@ -236,7 +241,8 @@ fn run_maintenance(app: &AppHandle, control: &installer::InstallControl, package
         if snapshot.package_id != package_id || !safe_revision(&snapshot.revision) { return Err("Сохранённая ревизия отката повреждена.".to_owned()); }
         installer::run_logged(app, control, "git", &["reset".into(), "--hard".into(), snapshot.revision], &directory, None)?;
     }
-    if package_id == "forge-neo" { installer::install_forge_neo(app, control, &parent) }
+    if package_id == "amdgpu-forge" { crate::amdgpu::install(app, control, &parent) }
+    else if package_id == "forge-neo" { installer::install_forge_neo(app, control, &parent) }
     else { installer::install(app, control, &parent) }
 }
 

@@ -153,7 +153,7 @@ pub(crate) fn hide_console(command: &mut Command) {
     #[cfg(not(windows))] let _ = command;
 }
 
-fn use_local_clip_sources(command: &mut Command, directory: &Path) {
+pub(crate) fn use_local_clip_sources(command: &mut Command, directory: &Path) {
     for (variable, folder) in [("CLIP_PACKAGE", "clip"), ("OPENCLIP_PACKAGE", "open_clip")] {
         let source = directory.join("repositories").join(folder);
         if source.join(".git").is_dir() {
@@ -624,6 +624,11 @@ fn only_preloaded_models(directory: &Path) -> Result<bool, String> {
     Ok(true)
 }
 
+pub(crate) fn prepare_local_clip(app: &AppHandle, control: &InstallControl, python: &Path, directory: &Path) -> Result<(), String> {
+    install_local_clip(app, control, python, directory, "clip", "clip", CLIP_REPO, CLIP_REVISION)?;
+    install_local_clip(app, control, python, directory, "open_clip", "open_clip", OPENCLIP_REPO, OPENCLIP_REVISION)
+}
+
 pub(crate) fn install(app: &AppHandle, control: &InstallControl, parent: &Path) -> Result<(), String> {
     notify(app, "checking", "Проверка Git и Python 3.10…");
     command_output(app, "git", &["--version".to_owned()]).map_err(|_| "Git не найден. Установите Git и перезапустите Flow.".to_owned())?;
@@ -851,6 +856,7 @@ pub(crate) async fn install_xformers(
     state: State<'_, Arc<InstallControl>>,
     webui: State<'_, WebuiControl>,
 ) -> Result<(), String> {
+    if crate::active_package(&app)? == "amdgpu-forge" { return Err("xformers не поддерживается в пакете DirectML.".into()); }
     if webui.is_running() { return Err("Остановите WebUI перед установкой xformers.".to_owned()); }
     let (directory, python) = installed_webui_python(&app)?;
     if state.running.swap(true, Ordering::SeqCst) { return Err("Уже выполняется установка.".to_owned()); }
@@ -882,9 +888,9 @@ pub(crate) fn launch_web_ui(app: AppHandle, webui: State<'_, WebuiControl>, inst
     if webui.is_running() { return Err("WebUI уже запущен или запускается.".to_owned()); }
     if installs.is_running() { return Err("Дождитесь завершения установки пакета или xformers.".to_owned()); }
     let package_id = package_id.unwrap_or(crate::active_package(&app)?);
-    if !matches!(package_id.as_str(), "automatic1111" | "forge-neo" | "comfyui") { return Err("Неизвестный пакет.".to_owned()); }
+    if !matches!(package_id.as_str(), "automatic1111" | "forge-neo" | "amdgpu-forge") { return Err("Неизвестный пакет.".to_owned()); }
     if crate::active_package(&app)? != package_id { return Err("Сначала выберите пакет в списке Flow.".to_owned()); }
-    if package_id == "comfyui" { return crate::comfy::launch(app, &webui); }
+    if package_id == "amdgpu-forge" { return crate::amdgpu::launch(app, &webui); }
     let forge = package_id == "forge-neo";
     let directory = if forge {
         crate::package_dir(&app)?
@@ -1063,7 +1069,7 @@ fn launch_option(arguments: &[String], name: &str) -> Option<PathBuf> {
     })
 }
 
-fn disable_browser_autolaunch(directory: &Path, arguments: &mut Vec<String>) -> Result<(), String> {
+pub(crate) fn disable_browser_autolaunch(directory: &Path, arguments: &mut Vec<String>) -> Result<(), String> {
     arguments.retain(|argument| argument != "--autolaunch" && !argument.starts_with("--autolaunch="));
     let data = launch_option(arguments, "--data-dir").unwrap_or_else(|| directory.to_path_buf());
     let data = if data.is_absolute() { data } else { directory.join(data) };
