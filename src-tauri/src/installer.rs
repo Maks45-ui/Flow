@@ -913,12 +913,16 @@ pub(crate) fn launch_web_ui(app: AppHandle, webui: State<'_, WebuiControl>, inst
     let checkpoints = library.join("Stable-diffusion");
     fs::create_dir_all(&checkpoints).map_err(|error| format!("Не удалось подготовить общую библиотеку моделей: {error}"))?;
     if forge {
-        // An imported Forge may already have its own model layout. Keep that layout intact.
+        // Keep a populated imported model layout intact. An empty imported
+        // Forge can use the discovered shared library without copying files.
         let managed = crate::installation_dir(&app)?.join("sd-webui-forge-neo");
-        if directory == managed && !arguments.iter().any(|arg| arg == "--model-ref" || arg.starts_with("--model-ref=")) {
-            let (linked, conflicts) = crate::maintenance::link_model_tree(&directory.join("models"), &library)?;
-            if linked > 0 { notify_kind(&app, "launch", "log", format!("В общую библиотеку без копирования добавлено файлов: {linked}.")); }
-            if conflicts > 0 { notify_kind(&app, "launch", "log", format!("В общей библиотеке уже есть {conflicts} файлов с теми же именами. Проверьте их при необходимости.")); }
+        if (directory == managed || !crate::model_manager::has_models(&directory.join("models")))
+            && !arguments.iter().any(|arg| arg == "--model-ref" || arg.starts_with("--model-ref=")) {
+            if directory == managed {
+                let (linked, conflicts) = crate::maintenance::link_model_tree(&directory.join("models"), &library)?;
+                if linked > 0 { notify_kind(&app, "launch", "log", format!("В общую библиотеку без копирования добавлено файлов: {linked}.")); }
+                if conflicts > 0 { notify_kind(&app, "launch", "log", format!("В общей библиотеке уже есть {conflicts} файлов с теми же именами. Проверьте их при необходимости.")); }
+            }
             arguments.push("--model-ref".to_owned());
             arguments.push(library.to_string_lossy().into_owned());
         }
