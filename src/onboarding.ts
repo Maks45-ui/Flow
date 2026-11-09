@@ -98,9 +98,10 @@ export class FirstRunController {
     await startSplashScreen();
     await chooseFirstLanguage();
     const result = await status;
-    if (result.stage >= 3 || result.stage === 1) { this.app.inert = false; return; }
+    // Launching Flow must never open the model catalog, even when an installed
+    // package left a pending model step. Only a new installation can open it.
+    if (result.stage >= 1) { this.app.inert = false; return; }
     this.dialog.showModal();
-    if (result.stage === 2) this.showModelStep();
     if (result.error) this.showError(`Не удалось проверить первый запуск: ${result.error}`);
     if (result.stage === 0) this.input.focus();
   }
@@ -172,12 +173,11 @@ export class FirstRunController {
     try {
       await this.api.saveOnboardingToken(token);
       this.input.value = "";
-      if (await this.api.getOnboardingStage() === 2) this.showModelStep();
-      else {
-        this.dialog.close();
-        this.app.inert = false;
-        this.onAwaitInstallation();
-      }
+      const stage = await this.api.getOnboardingStage();
+      this.dialog.close();
+      this.app.inert = false;
+      if (stage === 1) this.onAwaitInstallation();
+      else this.onComplete();
     } catch (error) {
       this.showError(errorMessage(error));
     } finally {
