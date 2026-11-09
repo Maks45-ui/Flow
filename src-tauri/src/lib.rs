@@ -3,7 +3,7 @@ mod discord;
 mod gallery;
 mod generation;
 mod gpu_diagnostics;
-mod comfy;
+mod amdgpu;
 mod installer;
 mod paths;
 mod maintenance;
@@ -21,9 +21,9 @@ use tauri_plugin_opener::OpenerExt;
 #[serde(rename_all = "camelCase")]
 struct Settings {
     #[serde(default)]
-    comfyui_dir: Option<String>,
+    amdgpu_dir: Option<String>,
     #[serde(default)]
-    comfyui_arguments: Vec<String>,
+    amdgpu_arguments: Vec<String>,
     #[serde(default)]
     civitai_token: String,
     #[serde(default)]
@@ -94,8 +94,8 @@ struct WebuiStatus {
 /// Report the local WebUI process and GPU memory; WebUI API metrics are optional.
 #[tauri::command]
 async fn get_webui_status(webui: State<'_, installer::WebuiControl>) -> Result<WebuiStatus, String> {
-    let gpu_memory = tauri::async_runtime::spawn_blocking(installer::nvidia_memory_mib)
-        .await.ok().flatten();
+    let gpu_memory = if webui.package_id().as_deref() == Some("amdgpu-forge") { None }
+        else { tauri::async_runtime::spawn_blocking(installer::nvidia_memory_mib).await.ok().flatten() };
     let gib = 1024.0;
     let vram_used_gb = gpu_memory.map(|(used, _)| used as f64 / gib);
     let vram_total_gb = gpu_memory.map(|(_, total)| total as f64 / gib);
@@ -113,10 +113,6 @@ async fn get_webui_status(webui: State<'_, installer::WebuiControl>) -> Result<W
     let started = std::time::Instant::now();
     if client.get(&ready_url).send().await.is_ok() {
         status.ping_ms = Some(started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64);
-    }
-    if webui.package_id().as_deref() == Some("comfyui") {
-        status.active_model = Some("ComfyUI · workflow".into());
-        return Ok(status);
     }
     let memory_url = format!("{ready_url}/sdapi/v1/memory");
     if let Ok(response) = client.get(memory_url).send().await {
@@ -184,7 +180,15 @@ fn read_settings(app: &AppHandle) -> Result<Settings, String> {
         return Ok(Settings::default());
     }
     let bytes = fs::read(path).map_err(|error| error.to_string())?;
-    serde_json::from_slice(&bytes).map_err(|error| error.to_string())
+    let mut settings: Settings = serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
+    // Retired package folders are preserved. Select a remaining package without deleting user data.
+    if settings.active_package == "comfyui" {
+        settings.active_package = if settings.forge_neo_dir.as_ref().is_some_and(|path| PathBuf::from(path).join("launch.py").is_file()) {
+            "forge-neo".into()
+        } else if settings.amdgpu_dir.as_ref().is_some_and(|path| amdgpu::ready(&PathBuf::from(path))) { "amdgpu-forge".into() }
+        else { "automatic1111".into() };
+    }
+    Ok(settings)
 }
 
 fn write_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
@@ -203,10 +207,10 @@ pub(crate) fn activate_managed_forge_neo(app: &AppHandle, directory: &std::path:
     write_settings(app, &settings)
 }
 
-pub(crate) fn activate_comfyui(app: &AppHandle, directory: &std::path::Path) -> Result<(), String> {
+pub(crate) fn activate_amdgpu(app: &AppHandle, directory: &std::path::Path) -> Result<(), String> {
     let mut settings = read_settings(app)?;
-    settings.comfyui_dir = Some(directory.to_string_lossy().into_owned());
-    settings.active_package = "comfyui".to_owned();
+    settings.amdgpu_dir = Some(directory.to_string_lossy().into_owned());
+    settings.active_package = "amdgpu-forge".to_owned();
     write_settings(app, &settings)
 }
 
@@ -242,13 +246,13 @@ fn set_models_library_dir(app: AppHandle, directory: String, webui: State<'_, in
 
 pub(crate) fn active_package(app: &AppHandle) -> Result<String, String> {
     let saved = read_settings(app)?.active_package;
-    Ok(if matches!(saved.as_str(), "forge-neo" | "comfyui") { saved } else { "automatic1111".to_owned() })
+    Ok(if matches!(saved.as_str(), "forge-neo" | "amdgpu-forge") { saved } else { "automatic1111".to_owned() })
 }
 
 pub(crate) fn package_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    if active_package(app)? == "comfyui" {
-        return read_settings(app)?.comfyui_dir.map(PathBuf::from).map(|path| paths::subprocess_path(&path))
-            .ok_or("ComfyUI ещё не установлен.".to_owned());
+    if active_package(app)? == "amdgpu-forge" {
+        return read_settings(app)?.amdgpu_dir.map(PathBuf::from).map(|path| paths::subprocess_path(&path))
+            .ok_or("AMDGPU Forge ещё не установлен.".to_owned());
     }
     if active_package(app)? == "forge-neo" {
         let saved = read_settings(app)?.forge_neo_dir.ok_or("Forge Neo ещё не подключён.")?;
@@ -259,7 +263,7 @@ pub(crate) fn package_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 fn active_package_installed(app: &AppHandle) -> Result<bool, String> {
     let directory = package_dir(app)?;
-    if active_package(app)? == "comfyui" { return Ok(comfy::ready(&directory)); }
+    if active_package(app)? == "amdgpu-forge" { return Ok(amdgpu::ready(&directory)); }
     if active_package(app)? == "forge-neo" {
         Ok(forge_neo_ready(app, &directory)?)
     } else {
@@ -277,7 +281,7 @@ fn forge_neo_ready(app: &AppHandle, directory: &std::path::Path) -> Result<bool,
 
 pub(crate) fn webui_arguments(app: &AppHandle) -> Result<Vec<String>, String> {
     let settings = read_settings(app)?;
-    if settings.active_package == "comfyui" { return Ok(settings.comfyui_arguments); }
+    if settings.active_package == "amdgpu-forge" { return Ok(settings.amdgpu_arguments); }
     Ok(if settings.active_package == "forge-neo" { settings.forge_neo_arguments } else { settings.webui_arguments })
 }
 
@@ -341,19 +345,19 @@ fn get_state(app: AppHandle, webui: State<'_, installer::WebuiControl>) -> Resul
             });
         }
     }
-    if let Some(path) = settings.comfyui_dir {
+    if let Some(path) = settings.amdgpu_dir {
         let directory = paths::subprocess_path(&PathBuf::from(path));
-        if comfy::ready(&directory) {
-            let running = webui.is_running() && webui.package_id().as_deref() == Some("comfyui");
+        if amdgpu::ready(&directory) {
+            let running = webui.is_running() && webui.package_id().as_deref() == Some("amdgpu-forge");
             let version = fs::read(directory.join(".flow-installed.json")).ok()
                 .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
                 .and_then(|value| value["version"].as_str().map(str::to_owned)).unwrap_or_default();
-            packages.push(PackageInfo { id: "comfyui".into(), name: "ComfyUI".into(), version,
+            packages.push(PackageInfo { id: "amdgpu-forge".into(), name: "WebUI AMDGPU Forge · DirectML".into(), version,
                 path: directory.to_string_lossy().into_owned(), running,
                 stopping: running && webui.is_stopping(),
-                stopped: webui.was_stopped() && webui.package_id().as_deref() == Some("comfyui"),
+                stopped: webui.was_stopped() && webui.package_id().as_deref() == Some("amdgpu-forge"),
                 ready_url: if running { webui.ready_url() } else { None },
-                active: settings.active_package == "comfyui", managed: true, has_rollback: false });
+                active: settings.active_package == "amdgpu-forge", managed: true, has_rollback: maintenance::has_rollback(&app, "amdgpu-forge") });
         }
     }
     let token = civitai_token(&app)?;
@@ -410,12 +414,12 @@ fn select_package(app: AppHandle, package_id: String, webui: State<'_, installer
     if webui.is_running() || downloads.is_running() { return Err("Остановите WebUI и загрузку модели перед сменой активного пакета.".to_owned()); }
     let directory = if package_id == "forge-neo" {
         read_settings(&app)?.forge_neo_dir.map(PathBuf::from).ok_or("Forge Neo ещё не подключён.")?
-    } else if package_id == "comfyui" {
-        read_settings(&app)?.comfyui_dir.map(PathBuf::from).ok_or("ComfyUI ещё не установлен.")?
+    } else if package_id == "amdgpu-forge" {
+        read_settings(&app)?.amdgpu_dir.map(PathBuf::from).ok_or("AMDGPU Forge ещё не установлен.")?
     } else if package_id == "automatic1111" {
         installation_dir(&app)?.join("sd-webui")
     } else { return Err("Неизвестный пакет.".to_owned()); };
-    let ready = if package_id == "comfyui" { comfy::ready(&directory) }
+    let ready = if package_id == "amdgpu-forge" { amdgpu::ready(&directory) }
         else if package_id == "forge-neo" { forge_neo_ready(&app, &directory)? }
         else { directory.join("launch.py").is_file() };
     if !ready { return Err("Пакет не найден или установка ещё не завершена.".to_owned()); }
@@ -508,6 +512,7 @@ fn open_discord_server(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn open_diagnostic_source(app: AppHandle, url: String) -> Result<(), String> {
     const SOURCES: &[&str] = &[
+        "https://pypi.org/project/torch-directml/",
         "https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html",
         "https://support.microsoft.com/en-gb/windows/hardware/drivers/error-codes-in-device-manager-in-windows",
         "https://www.asus.com/support/faq/1047107/",
@@ -533,7 +538,8 @@ fn save_webui_arguments(app: AppHandle, arguments: Vec<String>) -> Result<Vec<St
     installer::parse_webui_arguments(&arguments)?;
     let normalized: Vec<String> = arguments.into_iter().map(|argument| argument.trim().to_owned()).collect();
     let mut settings = read_settings(&app)?;
-    if settings.active_package == "forge-neo" { settings.forge_neo_arguments = normalized.clone(); }
+    if settings.active_package == "amdgpu-forge" { amdgpu::arguments(installer::parse_webui_arguments(&normalized)?)?; settings.amdgpu_arguments = normalized.clone(); }
+    else if settings.active_package == "forge-neo" { settings.forge_neo_arguments = normalized.clone(); }
     else { settings.webui_arguments = normalized.clone(); }
     write_settings(&app, &settings)?;
     Ok(normalized)
@@ -549,8 +555,8 @@ fn get_webui_settings(app: AppHandle) -> Result<WebuiSettings, String> {
 fn save_webui_settings(app: AppHandle, settings: WebuiSettings) -> Result<WebuiSettings, String> {
     installer::parse_webui_arguments(&settings.arguments)?;
     let mut saved = read_settings(&app)?;
-    let arguments = settings.arguments.into_iter().map(|argument| argument.trim().to_owned()).collect();
-    if saved.active_package == "comfyui" { saved.comfyui_arguments = arguments; }
+    let arguments: Vec<String> = settings.arguments.into_iter().map(|argument| argument.trim().to_owned()).collect();
+    if saved.active_package == "amdgpu-forge" { amdgpu::arguments(installer::parse_webui_arguments(&arguments)?)?; saved.amdgpu_arguments = arguments; }
     else if saved.active_package == "forge-neo" { saved.forge_neo_arguments = arguments; }
     else { saved.webui_arguments = arguments; }
     saved.sdxl_memory_profile = settings.sdxl_memory_profile;
@@ -588,7 +594,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             gpu_diagnostics::get_gpu_diagnostics,
-            comfy::install_comfyui,
+            amdgpu::install_amdgpu_forge,
             get_state,
             get_webui_status,
             set_installation_dir,

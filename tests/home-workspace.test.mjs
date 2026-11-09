@@ -13,9 +13,11 @@ test('Home keeps progress, recent images and logs in a bounded workspace without
     assert(home.contains(document.getElementById(id)), id);
   }
   assert.equal(document.querySelector('iframe'), null);
+  assert(document.querySelector('option[value="amdgpu-forge-install"]'));
+  assert.equal(document.querySelector('option[value="comfyui-install"]'), null);
   assert.equal(document.querySelector('#generation-notifications'), null);
   const style = document.createElement('style');
-  style.textContent = readFileSync(new URL('../src/comfy.css', import.meta.url), 'utf8');
+  style.textContent = readFileSync(new URL('../src/home-workspace.css', import.meta.url), 'utf8');
   document.head.append(style);
   assert.equal(window.getComputedStyle(home).overflow, 'hidden');
   assert.equal(window.getComputedStyle(home).gridTemplateRows, 'minmax(0, 1fr)');

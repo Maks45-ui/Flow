@@ -102,6 +102,14 @@ test('unknown report does not invent a solution', () => {
  const output = buildDiagnosticReport(new DiagnosticHistory().capture('general','Unexpected failure'), []);
  assert(output.includes('Причина не установлена'));
 });
+
+test('DirectML device failures have AMD-specific advice without a CUDA requirement', () => {
+ const incident = new DiagnosticHistory().capture('install', 'AssertionError: DirectML: no compatible GPU found');
+ const match = incident.matches.find(item => item.rule.id === 'directml-device');
+ assert(match);
+ assert.match(match.rule.steps.join(' '), /драйвер AMD/);
+ assert(!incident.matches.some(item => item.rule.id === 'gpu-unavailable'));
+});
 test('every rule has reviewed provenance and an allowlisted source', () => {
  const rust = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8');
  assert.equal(new Set(DIAGNOSTIC_RULES.map(rule => rule.id)).size, DIAGNOSTIC_RULES.length);

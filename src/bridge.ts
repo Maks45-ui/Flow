@@ -8,7 +8,7 @@ import type { AppState, CheckReport, DownloadedFile, FlowAPI, FlowUpdate, Galler
 // The UI only knows this typed contract. System access stays in Rust.
 const nativeFlowApi: FlowAPI = {
   getGpuDiagnostics: () => invoke<GpuDiagnostics>("get_gpu_diagnostics"),
-  installComfyUI: (installationDir) => invoke<void>("install_comfyui", { installationDir }),
+  installAmdgpuForge: (installationDir) => invoke<void>("install_amdgpu_forge", { installationDir }),
   onGenerationComplete: async (callback) => listen("flow:generation-complete", () => callback()),
   openDiscordServer: () => invoke<void>("open_discord_server"),
   inspectModelImport: (path: string) => invoke<ModelImportPreview>("inspect_model_import", { path }),

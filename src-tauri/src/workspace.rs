@@ -60,7 +60,6 @@ pub(crate) fn save_model_profile(app: AppHandle, profile: ModelProfile) -> Resul
 
 #[tauri::command]
 pub(crate) async fn generate_with_profile(app: AppHandle, webui: State<'_, WebuiControl>, model: String, prompt: String) -> Result<(), String> {
-    if crate::active_package(&app)? == "comfyui" { return Err("Запустите генерацию в редакторе ComfyUI на главной.".into()); }
     if prompt.trim().is_empty() || prompt.len() > 10_000 { return Err("Введите промпт (до 10000 символов).".to_owned()); }
     let base = webui.ready_url().ok_or("Сначала запустите WebUI.")?;
     let profile = profiles(&app)?.into_iter().find(|item| item.model == model).ok_or("Сначала сохраните профиль модели.")?;

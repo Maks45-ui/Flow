@@ -18,6 +18,15 @@ const checkedOn = "2026-11-04";
 const civitaiSource = { label: "Civitai · коды ошибок API", url: "https://developer.civitai.com/site/guide/errors" };
 export const DIAGNOSTIC_RULES: readonly DiagnosticRule[] = [
   {
+    id: "directml-device", title: "DirectML не нашёл совместимую видеокарту",
+    fact: "Проверка DirectML не смогла получить GPU.",
+    cause: "Для этого пакета нужны Windows, поддержка DirectX 12 и рабочий драйвер видеокарты.",
+    steps: ["Проверьте видеокарту в диспетчере устройств Windows.", "Установите подходящий драйвер AMD и перезагрузите Windows.", "Повторите установку AMDGPU Forge в той же папке. CUDA и xformers для DirectML не нужны."],
+    source: { label: "Microsoft · PyTorch DirectML", url: "https://pypi.org/project/torch-directml/" },
+    checkedOn: "2026-11-09", appliesTo: "WebUI AMDGPU Forge · DirectML.", scopes: ["install", "launch"],
+    pattern: /DirectML: no compatible GPU found/i
+  },
+  {
     id: "cuda-driver", title: "Драйвер не поддерживает установленную CUDA",
     fact: "PyTorch сообщил о несовместимом или слишком старом видеодрайвере.",
     cause: "Версия драйвера не подходит установленной сборке PyTorch/CUDA. Переустановка той же сборки PyTorch сама по себе это не исправляет.",
@@ -32,8 +41,8 @@ export const DIAGNOSTIC_RULES: readonly DiagnosticRule[] = [
     cause: "Видеокарта может быть отключена режимом энергосбережения, недоступна Windows или не работать с текущим драйвером. По одной строке ошибки точную причину определить нельзя.",
     steps: ["Проверьте состояние видеокарты в результатах проверки устройств ниже.", "На ноутбуке подключите питание и проверьте режим дискретной видеокарты в фирменной утилите.", "Если видеокарта подключена без ошибок, проверьте её драйвер и совместимость со сборкой PyTorch/CUDA.", "После восстановления доступа к GPU продолжите установку в той же папке. Уже скачанные файлы сохранятся."],
     source: { label: "Microsoft · коды устройств Windows", url: "https://support.microsoft.com/en-gb/windows/hardware/drivers/error-codes-in-device-manager-in-windows" },
-    checkedOn: "2026-11-08", appliesTo: "Forge Neo, ComfyUI и PyTorch; ошибка доступности GPU, не CUDA OutOfMemory.", scopes: ["install", "launch"],
-    pattern: /(?:PyTorch is not able to access any compute device\s*\(GPU\)|No CUDA GPUs are available|Found no NVIDIA driver on your system|ComfyUI requires a working NVIDIA CUDA driver)/i
+    checkedOn: "2026-11-08", appliesTo: "Forge Neo и PyTorch; ошибка доступности GPU, не CUDA OutOfMemory.", scopes: ["install", "launch"],
+    pattern: /(?:PyTorch is not able to access any compute device\s*\(GPU\)|No CUDA GPUs are available|Found no NVIDIA driver on your system)/i
   },
   {
     id: "cuda-memory", title: "Не хватило видеопамяти",
