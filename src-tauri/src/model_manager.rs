@@ -32,6 +32,38 @@ fn supported_model(path: &Path) -> bool {
             "safetensors" | "ckpt" | "pt" | "pth" | "bin"))
 }
 
+/// An imported Forge often lives next to an older WebUI that owns the models.
+/// Discover only those known locations; do not search unrelated folders/drives.
+pub(crate) fn package_model_directories(package: &Path) -> Vec<PathBuf> {
+    let mut directories = vec![package.join("models")];
+    if let Some(parent) = package.parent() {
+        let sibling = parent.join("sd-webui").join("models");
+        if !directories.contains(&sibling) { directories.push(sibling); }
+    }
+    directories
+}
+
+pub(crate) fn has_models(base: &Path) -> bool {
+    let mut pending: Vec<_> = MODEL_FOLDERS.iter().map(|(folder, _)| base.join(folder)).collect();
+    let mut visited = HashSet::new();
+    while let Some(directory) = pending.pop() {
+        let Ok(directory) = directory.canonicalize() else { continue; };
+        if !visited.insert(directory.clone()) { continue; }
+        let Ok(entries) = fs::read_dir(directory) else { continue; };
+        for entry in entries.flatten() {
+            let Ok(kind) = entry.file_type() else { continue; };
+            if kind.is_symlink() { continue; }
+            if kind.is_file() && supported_model(&entry.path()) { return true; }
+            if kind.is_dir() { pending.push(entry.path()); }
+        }
+    }
+    false
+}
+
+pub(crate) fn discover_package_library(package: &Path) -> Option<PathBuf> {
+    package_model_directories(package).into_iter().find(|path| has_models(path))
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ImportDestination {
@@ -140,9 +172,17 @@ pub(crate) async fn import_model_file(app: AppHandle, path: String, model_type: 
 
 fn model_roots(app: &AppHandle) -> Result<Vec<ModelRoot>, String> {
     let mut bases = vec![(crate::models_library_dir(app)?, "Общая библиотека")];
-    if let Ok(package) = crate::package_dir(app) {
-        bases.push((package.join("models"), "Активный пакет"));
+    // Keep models visible when switching packages, including files owned by a
+    // neighbouring WebUI. Canonical roots below deduplicate shared directories.
+    let settings = crate::read_settings(app)?;
+    for (saved, source) in [(settings.forge_neo_dir, "Forge Neo"), (settings.amdgpu_dir, "AMDGPU Forge")] {
+        if let Some(saved) = saved {
+            for path in package_model_directories(&paths::subprocess_path(&PathBuf::from(saved))) {
+                bases.push((path, source));
+            }
+        }
     }
+    bases.push((crate::installation_dir(app)?.join("sd-webui/models"), "Общая библиотека"));
     let mut roots = Vec::new();
     let mut seen = HashSet::new();
     for (base, source) in bases {
@@ -236,7 +276,7 @@ pub(crate) fn delete_installed_model(
 
 #[cfg(test)]
 mod tests {
-    use super::{checked_model, collect_models, copy_model, guessed_type, remove_model, supported_model, ModelRoot};
+    use super::{checked_model, collect_models, copy_model, discover_package_library, guessed_type, has_models, remove_model, supported_model, ModelRoot};
     use std::{fs, time::{SystemTime, UNIX_EPOCH}};
 
     #[test]
@@ -280,6 +320,50 @@ mod tests {
         remove_model(model.to_str().unwrap(), &roots).unwrap();
         assert!(!model.exists());
         assert!(!supported_model(&nested.join("notes.txt")));
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn discovers_sibling_webui_models_when_imported_forge_has_only_placeholders() {
+        let suffix = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let base = std::env::temp_dir().join(format!("flow-discover-sibling-{suffix}"));
+        let forge = base.join("sd-webui-forge-neo");
+        let own = forge.join("models/Stable-diffusion");
+        let library = base.join("sd-webui/models");
+        fs::create_dir_all(&own).unwrap();
+        fs::write(own.join("Put Checkpoint here.txt"), b"placeholder").unwrap();
+        for (folder, name) in [("Stable-diffusion/SDXL", "xl.SAFETENSORS"), ("Lora", "style.safetensors"), ("VAE", "vae.pt")] {
+            let directory = library.join(folder);
+            fs::create_dir_all(&directory).unwrap();
+            fs::write(directory.join(name), b"model").unwrap();
+        }
+        assert!(!has_models(&forge.join("models")));
+        assert_eq!(discover_package_library(&forge), Some(library.clone()));
+        let roots = [
+            ModelRoot { path: library.join("Stable-diffusion").canonicalize().unwrap(), model_type: "Checkpoint", source: "test" },
+            ModelRoot { path: library.join("Lora").canonicalize().unwrap(), model_type: "LoRA", source: "test" },
+            ModelRoot { path: library.join("VAE").canonicalize().unwrap(), model_type: "VAE", source: "test" },
+            ModelRoot { path: library.join("Stable-diffusion").canonicalize().unwrap(), model_type: "Checkpoint", source: "duplicate" },
+        ];
+        let models = collect_models(&roots).unwrap();
+        assert_eq!(models.len(), 3);
+        assert!(models.iter().any(|model| model.name == "xl.SAFETENSORS"));
+        // Populated package-local models take priority; discovery never copies or moves them.
+        fs::write(own.join("local.ckpt"), b"local").unwrap();
+        assert_eq!(discover_package_library(&forge), Some(forge.join("models")));
+        assert!(library.join("Stable-diffusion/SDXL/xl.SAFETENSORS").is_file());
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn missing_or_placeholder_only_libraries_are_not_adopted() {
+        let suffix = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let base = std::env::temp_dir().join(format!("flow-discover-empty-{suffix}"));
+        let forge = base.join("forge");
+        assert_eq!(discover_package_library(&forge), None);
+        fs::create_dir_all(forge.join("models/VAE")).unwrap();
+        fs::write(forge.join("models/VAE/readme.txt"), b"placeholder").unwrap();
+        assert_eq!(discover_package_library(&forge), None);
         fs::remove_dir_all(base).unwrap();
     }
 }

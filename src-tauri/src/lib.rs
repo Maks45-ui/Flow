@@ -228,9 +228,18 @@ pub(crate) fn models_library_dir(app: &AppHandle) -> Result<PathBuf, String> {
     if let Some(saved) = settings.models_library_dir {
         return Ok(paths::subprocess_path(&PathBuf::from(saved)));
     }
-    // The native A1111 models folder is the default shared library. This keeps
-    // existing downloads in place while Forge Neo can reference the same files.
-    Ok(installation_dir(app)?.join("sd-webui").join("models"))
+    let fallback = installation_dir(app)?.join("sd-webui").join("models");
+    // Preserve an existing library. When it is empty, adopt the imported
+    // package's populated models directory (or its neighbouring sd-webui).
+    if !model_manager::has_models(&fallback) {
+        for saved in [settings.forge_neo_dir, settings.amdgpu_dir].into_iter().flatten() {
+            let package = paths::subprocess_path(&PathBuf::from(saved));
+            if let Some(library) = model_manager::discover_package_library(&package) {
+                return Ok(paths::subprocess_path(&library));
+            }
+        }
+    }
+    Ok(fallback)
 }
 
 #[tauri::command]
@@ -404,6 +413,13 @@ fn register_forge_neo(app: AppHandle, directory: String, webui: State<'_, instal
         return Err("В папке не найдены launch.py, modules_forge и готовое окружение venv Forge Neo.".to_owned());
     }
     let mut settings = read_settings(&app)?;
+    if settings.models_library_dir.is_none() {
+        let fallback = installation_dir(&app)?.join("sd-webui/models");
+        if !model_manager::has_models(&fallback) {
+            settings.models_library_dir = model_manager::discover_package_library(&path)
+                .map(|library| paths::subprocess_path(&library).to_string_lossy().into_owned());
+        }
+    }
     settings.forge_neo_dir = Some(path.to_string_lossy().into_owned());
     settings.active_package = "forge-neo".to_owned();
     write_settings(&app, &settings)
