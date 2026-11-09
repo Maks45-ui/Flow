@@ -41,7 +41,7 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release
       - name: Build Windows installer
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        run: pnpm tauri build --bundles nsis
+        run: ./.github/scripts/build-windows.ps1
       - name: Build signed updater installer
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         env:
@@ -49,7 +49,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) { throw "Set the TAURI_SIGNING_PRIVATE_KEY repository secret before publishing a tag." }
-          pnpm tauri build --bundles nsis --config src-tauri/tauri.updater.conf.json
+          ./.github/scripts/build-windows.ps1 -Signed
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe.sig -ErrorAction SilentlyContinue)) { throw "Signed updater artifact is missing." }
       - uses: actions/upload-artifact@v4
