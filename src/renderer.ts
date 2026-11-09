@@ -1336,7 +1336,6 @@ async function connectExistingPackage(directory?: string): Promise<void> {
     await refreshState();
     await Promise.all([downloadManager.restore(), modelManager.refresh(), workspaceTools.refresh()]);
     notify("Forge Neo подключён к Flow.");
-    await firstRun.onInstallComplete();
   } catch (error) { notify(message(error)); }
   finally {
     connectingExistingPackage = false;
