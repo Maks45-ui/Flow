@@ -1,0 +1,32 @@
+.flow-snow {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  z-index: 40;
+  contain: strict;
+}
+.flow-snow[hidden] { display: none; }
+.flow-snow-flake {
+  position: absolute;
+  top: -8px;
+  width: var(--snow-size);
+  height: var(--snow-size);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 2px rgb(50 75 100 / 25%);
+  opacity: 0;
+  animation: flow-snow-fall var(--snow-duration) var(--snow-delay) linear infinite;
+}
+.flow-snow-paused .flow-snow-flake { animation-play-state: paused; }
+@keyframes flow-snow-fall {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  8%, 85% { opacity: .45; }
+  100% { transform: translate3d(var(--snow-drift), calc(100dvh + 16px), 0); opacity: 0; }
+}
+#snow-enabled { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .flow-snow { display: none; }
+  .flow-snow-flake { animation: none; }
+}

@@ -1,5 +1,7 @@
 /** UTF-8 source copy → English. Product names, paths and process logs stay unchanged. */
 export const english: Readonly<Record<string, string>> = {
+  "Лёгкий снег": "Light snowfall",
+  "Снег поверх интерфейса. Учитывает системное уменьшение движения.": "Snow over the interface. Respects the system reduced motion setting.",
   "DirectML не нашёл совместимую видеокарту": "DirectML could not find a compatible GPU",
   "Проверка DirectML не смогла получить GPU.": "The DirectML check could not access a GPU.",
   "Для этого пакета нужны Windows, поддержка DirectX 12 и рабочий драйвер видеокарты.": "This package requires Windows, DirectX 12 support and a working GPU driver.",

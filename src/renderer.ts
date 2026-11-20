@@ -1,4 +1,5 @@
 import { flowApi } from "./bridge";
+import { initializeSnow } from "./snow";
 import { initializeLanguage, translate, getLocale } from "./i18n";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { check, type Update } from "@tauri-apps/plugin-updater";
@@ -11,6 +12,7 @@ import { ThemeController } from "./theme";
 import type { AppState, CheckReport, GalleryImage, ModelSummary, PackageInfo, Page, TaskEvent } from "./types";
 
 initializeLanguage();
+initializeSnow();
 window.flow = flowApi;
 
 function element<T extends HTMLElement>(id: string): T {
