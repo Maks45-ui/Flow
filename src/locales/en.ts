@@ -1,5 +1,9 @@
 /** UTF-8 source copy → English. Product names, paths and process logs stay unchanged. */
 export const english: Readonly<Record<string, string>> = {
+  "Интенсивность снега": "Snow intensity",
+  "Размер снежинок": "Snowflake size",
+  "От едва заметного до праздничного": "From subtle to festive",
+  "Средний размер; снежинки слегка различаются": "Average size; individual snowflakes vary slightly",
   "Загрузка не начата. Выберите модель ещё раз или пропустите этот шаг.": "Download did not start. Choose the model again or skip this step.",
   "Куда скачать модель?": "Where should the model be downloaded?",
   "Нужно скачать": "Download size",
