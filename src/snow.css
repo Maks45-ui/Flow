@@ -11,8 +11,8 @@
 .flow-snow-flake {
   position: absolute;
   top: -8px;
-  width: var(--snow-size);
-  height: var(--snow-size);
+  width: calc(var(--snow-size, 3px) * var(--snow-factor, 1));
+  height: calc(var(--snow-size, 3px) * var(--snow-factor, 1));
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 0 2px rgb(50 75 100 / 25%);
@@ -30,3 +30,12 @@
   .flow-snow { display: none; }
   .flow-snow-flake { animation: none; }
 }
+
+.snow-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin: 0 0 20px; }
+.snow-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; }
+.snow-control label { font-size: 12px; color: var(--text); }
+.snow-control output { font: 12px var(--font-mono, monospace); color: var(--muted); }
+.snow-control input { grid-column: 1 / -1; width: 100%; margin: 4px 0; accent-color: var(--accent); cursor: pointer; }
+.snow-control input:disabled { opacity: .4; cursor: default; }
+.snow-control small { grid-column: 1 / -1; color: var(--muted); font-size: 11px; }
+@media (max-width: 560px) { .snow-controls { grid-template-columns: 1fr; gap: 16px; } }
