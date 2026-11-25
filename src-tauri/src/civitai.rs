@@ -244,6 +244,29 @@ fn model_subfolder(model_type: &str) -> Result<&'static str, String> {
     }
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DownloadDestination {
+    directory: String,
+    free_bytes: Option<u64>,
+    required_bytes: u64,
+}
+
+#[tauri::command]
+pub(crate) async fn get_download_destination(app: AppHandle, file: ModelFile, model_type: String) -> Result<DownloadDestination, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (target, partial, _) = paths(&app, &model_type, &file.name)?;
+        let directory = target.parent().ok_or("Некорректная папка загрузки.")?;
+        let size = if file.size_kb.is_finite() && file.size_kb > 0.0 { (file.size_kb * 1024.0) as u64 } else { 0 };
+        let present = fs::metadata(partial).map(|meta| meta.len()).unwrap_or(0);
+        Ok(DownloadDestination {
+            directory: crate::paths::subprocess_path(directory).to_string_lossy().into_owned(),
+            free_bytes: crate::maintenance::available_disk_bytes(directory),
+            required_bytes: size.saturating_sub(present),
+        })
+    }).await.map_err(|error| error.to_string())?
+}
+
 fn paths(app: &AppHandle, model_type: &str, file_name: &str) -> Result<(PathBuf, PathBuf, PathBuf), String> {
     let name = safe_name(file_name);
     if name.is_empty() || name != file_name { return Err("Некорректное имя файла модели.".to_owned()); }
@@ -292,11 +315,24 @@ fn notify_hash_check(app: &AppHandle, task_id: &str, file_name: &str) {
     });
 }
 
-fn download(app: &AppHandle, control: &DownloadControl, file: ModelFile, model_type: String, task_id: &str, resume: bool) -> Result<(), String> {
+fn download(app: &AppHandle, control: &DownloadControl, file: ModelFile, model_type: String, task_id: &str, resume: bool, expected_directory: Option<&str>) -> Result<(), String> {
     let mut url = allowed_url(&file.download_url)?;
     if !url.path().starts_with("/api/download/models/") { return Err("Недопустимая ссылка скачивания.".to_owned()); }
     url.set_host(Some("civitai.red")).map_err(|_| "Недопустимый адрес скачивания.".to_owned())?;
     let (target, temp, meta) = paths(app, &model_type, &file.name)?;
+    let folder = target.parent().ok_or("Некорректная папка загрузки.")?;
+    if let Some(expected) = expected_directory {
+        if crate::paths::subprocess_path(folder) != crate::paths::subprocess_path(&PathBuf::from(expected)) {
+            return Err("Папка загрузки изменилась. Проверьте путь и повторите скачивание.".into());
+        }
+    }
+    let expected_size = if file.size_kb.is_finite() && file.size_kb > 0.0 { (file.size_kb * 1024.0) as u64 } else { 0 };
+    let present = if resume { fs::metadata(&temp).map(|meta| meta.len()).unwrap_or(0) } else { 0 };
+    if let Some(free) = crate::maintenance::available_disk_bytes(folder) {
+        if free < expected_size.saturating_sub(present).saturating_add(64 * 1024 * 1024) {
+            return Err(format!("Недостаточно места в {}. Выберите другую библиотеку моделей.", folder.display()));
+        }
+    }
     let expected_hash = expected_sha256(file.sha256.as_deref())?;
     if let Some(folder) = target.parent() { fs::create_dir_all(folder).map_err(|error| error.to_string())?; }
     if target.exists() { return Err("Файл уже загружен.".to_owned()); }
@@ -391,7 +427,7 @@ fn download(app: &AppHandle, control: &DownloadControl, file: ModelFile, model_t
 }
 
 #[tauri::command]
-pub(crate) async fn download_model(app: AppHandle, state: State<'_, Arc<DownloadControl>>, file: ModelFile, model_type: String, task_id: String, resume: bool) -> Result<(), String> {
+pub(crate) async fn download_model(app: AppHandle, state: State<'_, Arc<DownloadControl>>, file: ModelFile, model_type: String, task_id: String, resume: bool, expected_directory: Option<String>) -> Result<(), String> {
     if task_id.is_empty() || task_id.len() > 64 || !task_id.chars().all(|character| character.is_ascii_alphanumeric() || character == '-') {
         return Err("Некорректный идентификатор загрузки.".to_owned());
     }
@@ -401,7 +437,7 @@ pub(crate) async fn download_model(app: AppHandle, state: State<'_, Arc<Download
     let control = Arc::clone(&*state);
     tauri::async_runtime::spawn_blocking(move || {
         let name = file.name.clone();
-        let result = download(&app, &control, file, model_type, &task_id, resume);
+        let result = download(&app, &control, file, model_type, &task_id, resume, expected_directory.as_deref());
         let (phase, message) = match result { Ok(()) => ("done", format!("{name} загружен.")), Err(error) => (
             if control.cancelled.load(Ordering::SeqCst) { "cancelled" } else if control.paused.load(Ordering::SeqCst) { "paused" } else { "error" }, error
         ) };

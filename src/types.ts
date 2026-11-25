@@ -112,7 +112,10 @@ export interface DownloadedFile {
   sha256: string | null;
 }
 
+export interface DownloadDestination { directory: string; freeBytes: number | null; requiredBytes: number; }
+
 export interface InstalledModel {
+  availableIn: string[];
   path: string;
   name: string;
   modelType: "Checkpoint" | "LoRA" | "VAE";
@@ -174,6 +177,10 @@ export interface StorageReport {
   files: { path: string; name: string; sizeBytes: number; category: "models" | "outputs" | "packages" }[];
 }
 export interface FlowAPI {
+  getDownloadDestination(file: ModelFile, modelType: string): Promise<DownloadDestination>;
+  getModelFolders(): Promise<string[]>;
+  addModelFolder(directory: string): Promise<void>;
+  removeModelFolder(directory: string): Promise<void>;
   getGpuDiagnostics(): Promise<GpuDiagnostics>;
   installAmdgpuForge(installationDir: string): Promise<void>;
   onGenerationComplete(callback: () => void): Promise<() => void>;
@@ -219,7 +226,7 @@ export interface FlowAPI {
   deleteGalleryImages(paths: string[]): Promise<number>;
   searchModels(query: string, sort: "popular" | "newest" | "rated", modelType: string): Promise<ModelSummary[]>;
   getStarterModel(key: string): Promise<StarterModel>;
-  downloadModel(file: ModelFile, type: string, taskId: string, resume: boolean): Promise<void>;
+  downloadModel(file: ModelFile, type: string, taskId: string, resume: boolean, expectedDirectory?: string): Promise<void>;
   pauseDownload(): Promise<void>;
   cancelDownload(): Promise<void>;
   listDownloads(): Promise<DownloadedFile[]>;

@@ -1,8 +1,10 @@
+import { confirmDestination } from "./download-destination";
 import type { DownloadedFile, FlowAPI, ModelFile, TaskEvent } from "./types";
 
 type DownloadStatus = "queued" | "downloading" | "verifying" | "pausing" | "paused" | "cancelling" | "completed" | "error";
 
 interface DownloadItem {
+  destination: string | null;
   id: string;
   modelName: string;
   modelType: string;
@@ -57,6 +59,7 @@ function errorMessage(error: unknown): string {
 export class DownloadManager {
   private readonly items = new Map<string, DownloadItem>();
   private readonly cards = new Map<string, HTMLElement>();
+  private confirming = false;
   private activeId: string | null = null;
 
   constructor(
@@ -79,10 +82,20 @@ export class DownloadManager {
     this.updateCount();
   }
 
-  enqueue(file: ModelFile, modelType: string, modelName: string, previewUrl: string | null = null): string | null {
+  async enqueue(file: ModelFile, modelType: string, modelName: string, previewUrl: string | null = null): Promise<string | null> {
+    if (this.confirming) return null;
     const duplicate = [...this.items.values()].some((item) => item.file.name === file.name && item.modelType === modelType);
     if (duplicate) { this.notify("Этот файл уже находится в списке загрузок."); return null; }
+    this.confirming = true;
+    let destination: string;
+    try {
+      const target = await this.api.getDownloadDestination(file, modelType);
+      if (!await confirmDestination(file, target)) return null;
+      destination = target.directory;
+    } catch (error) { this.notify(errorMessage(error)); return null; }
+    finally { this.confirming = false; }
     const item: DownloadItem = {
+      destination,
       id: crypto.randomUUID(), modelName, modelType, file, status: "queued",
       percent: 0, bytesDownloaded: 0, totalBytes: Math.max(0, file.sizeKb * 1024),
       bytesPerSecond: 0, error: null, resume: false, previewUrl
@@ -133,6 +146,7 @@ export class DownloadManager {
     if (duplicate) return;
     const paused = file.status === "paused";
     this.add({
+      destination: null,
       id: crypto.randomUUID(), modelName: file.name, modelType: file.modelType,
       file: { name: file.name, downloadUrl: file.downloadUrl ?? "", sizeKb: file.sizeBytes / 1024, sha256: file.sha256 },
       status: paused ? "paused" : "completed",
@@ -265,7 +279,14 @@ export class DownloadManager {
     next.status = "downloading";
     next.error = null;
     this.update(next);
-    void this.api.downloadModel(next.file, next.modelType, next.id, next.resume).catch((error: unknown) => {
+    void (async () => {
+      const target = await this.api.getDownloadDestination(next.file, next.modelType);
+      if (next.destination === null) {
+        if (!await confirmDestination(next.file, target)) throw new Error("Загрузка не начата.");
+        next.destination = target.directory;
+      }
+      await this.api.downloadModel(next.file, next.modelType, next.id, next.resume, next.destination);
+    })().catch((error: unknown) => {
       next.status = "error";
       next.error = errorMessage(error);
       this.activeId = null;
@@ -290,12 +311,14 @@ export class DownloadManager {
   }
 
   private resume(item: DownloadItem): void {
+    item.destination = null;
     item.status = "queued";
     this.update(item);
     this.pump();
   }
 
   private async retry(item: DownloadItem): Promise<void> {
+    item.destination = null;
     try {
       item.status = "queued";
       item.bytesPerSecond = 0;

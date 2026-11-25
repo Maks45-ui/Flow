@@ -39,7 +39,7 @@ export class FirstRunController {
   constructor(
     private readonly api: FlowAPI,
     private readonly app: HTMLElement,
-    private readonly enqueue: (file: ModelFile, type: string, name: string) => string | null,
+    private readonly enqueue: (file: ModelFile, type: string, name: string) => Promise<string | null>,
     private readonly onComplete: () => void,
     private readonly onAwaitInstallation: () => void
   ) {
@@ -240,7 +240,7 @@ export class FirstRunController {
     if (!model) return;
     const card = this.card(key);
     const name = card.querySelector("h3")?.textContent ?? model.file.name;
-    const taskId = this.enqueue(model.file, "Checkpoint", name);
+    const taskId = await this.enqueue(model.file, "Checkpoint", name);
     if (!taskId) {
       this.modelError.textContent = onboardingCopy.alreadyQueued;
       return;
