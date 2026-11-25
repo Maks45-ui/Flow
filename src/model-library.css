@@ -1,0 +1,6 @@
+.download-destination { width: min(560px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); overflow-y: auto; }
+.library-path { display: block; overflow-wrap: anywhere; white-space: pre-wrap; padding: 12px; background: var(--surface); border: 1px solid var(--border-subtle); border-radius: 8px; font-size: 12px; }
+.library-folders { display: grid; gap: 8px; margin: 12px 0; }
+.library-folder { display: flex; gap: 12px; align-items: center; }
+.library-folder code { flex: 1; min-width: 0; }
+.model-availability { display: block; color: var(--muted); font-size: 12px; }

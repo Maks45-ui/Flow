@@ -27,6 +27,21 @@ extern "system" {
     fn GetDiskFreeSpaceExW(path: *const u16, available: *mut u64, total: *mut u64, free: *mut u64) -> i32;
 }
 
+pub(crate) fn available_disk_bytes(path: &Path) -> Option<u64> {
+    let existing = path.ancestors().find(|part| part.is_dir())?;
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        let wide: Vec<u16> = existing.as_os_str().encode_wide().chain(Some(0)).collect();
+        let mut available = 0;
+        if unsafe { GetDiskFreeSpaceExW(wide.as_ptr(), &mut available, std::ptr::null_mut(), std::ptr::null_mut()) } != 0 {
+            return Some(available);
+        }
+    }
+    let _ = existing;
+    None
+}
+
 #[cfg(windows)]
 fn windows_resources(parent: &Path) -> Option<(f64, f64, f64, f64)> {
     use std::os::windows::ffi::OsStrExt;

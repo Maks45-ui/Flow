@@ -1,3 +1,4 @@
+import { initializeModelFolders } from "./model-library";
 import { flowApi } from "./bridge";
 import { initializeSnow } from "./snow";
 import { initializeLanguage, translate, getLocale } from "./i18n";
@@ -1714,3 +1715,5 @@ void downloadManager.restore().catch((error: unknown) => notify(message(error)))
 void window.flow.setPage("home").catch(() => { /* Discord may be unavailable. */ });
 
 
+
+initializeModelFolders(flowApi, async () => { await modelManager.refresh(); await workspaceTools.refresh(); }, notify);

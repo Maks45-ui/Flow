@@ -10,15 +10,16 @@ const MODEL_FOLDERS: [(&str, &str); 3] = [
     ("VAE", "VAE"),
 ];
 
-struct ModelRoot {
-    path: PathBuf,
-    model_type: &'static str,
+pub(crate) struct ModelRoot {
+    pub(crate) path: PathBuf,
+    pub(crate) model_type: &'static str,
     source: &'static str,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct InstalledModel {
+    available_in: Vec<String>,
     path: String,
     name: String,
     model_type: &'static str,
@@ -170,11 +171,14 @@ pub(crate) async fn import_model_file(app: AppHandle, path: String, model_type: 
     }).await.map_err(|error| error.to_string())?
 }
 
-fn model_roots(app: &AppHandle) -> Result<Vec<ModelRoot>, String> {
+pub(crate) fn model_roots(app: &AppHandle) -> Result<Vec<ModelRoot>, String> {
     let mut bases = vec![(crate::models_library_dir(app)?, "Общая библиотека")];
     // Keep models visible when switching packages, including files owned by a
     // neighbouring WebUI. Canonical roots below deduplicate shared directories.
     let settings = crate::read_settings(app)?;
+    for directory in &settings.model_folders {
+        bases.push((PathBuf::from(directory), "Подключённая папка"));
+    }
     for (saved, source) in [(settings.forge_neo_dir, "Forge Neo"), (settings.amdgpu_dir, "AMDGPU Forge")] {
         if let Some(saved) = saved {
             for path in package_model_directories(&paths::subprocess_path(&PathBuf::from(saved))) {
@@ -220,6 +224,7 @@ fn collect_models(roots: &[ModelRoot]) -> Result<Vec<InstalledModel>, String> {
                     if !canonical.starts_with(&root.path) || !seen_files.insert(canonical.clone()) { continue; }
                     let size_bytes = entry.metadata().map_err(|error| error.to_string())?.len();
                     result.push(InstalledModel {
+                        available_in: Vec::new(),
                         path: paths::subprocess_path(&canonical).to_string_lossy().into_owned(),
                         name: entry.file_name().to_string_lossy().into_owned(),
                         model_type: root.model_type,
@@ -258,8 +263,89 @@ fn remove_model(path: &str, roots: &[ModelRoot]) -> Result<(), String> {
 
 #[tauri::command]
 pub(crate) async fn list_installed_models(app: AppHandle) -> Result<Vec<InstalledModel>, String> {
-    tauri::async_runtime::spawn_blocking(move || collect_models(&model_roots(&app)?))
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut models = collect_models(&model_roots(&app)?)?;
+        let settings = crate::read_settings(&app)?;
+        let library = crate::models_library_dir(&app)?.canonicalize().ok();
+        for model in &mut models {
+            let path = PathBuf::from(&model.path).canonicalize().map_err(|error| error.to_string())?;
+            let legacy = crate::installation_dir(&app)?.join("sd-webui");
+            if legacy.join("launch.py").is_file() {
+                let folder = match model.model_type { "LoRA" => "Lora", "VAE" => "VAE", _ => "Stable-diffusion" };
+                let own = legacy.join("models").join(folder).canonicalize().ok();
+                let shared = library.as_ref().map(|root| root.join(folder));
+                if own.is_some_and(|root| path.starts_with(root)) || (model.model_type == "Checkpoint" && shared.is_some_and(|root| path.starts_with(root))) {
+                    model.available_in.push("AUTOMATIC1111".into());
+                }
+            }
+            if settings.forge_neo_dir.as_ref().is_some_and(|dir| Path::new(dir).join("launch.py").is_file()) {
+                model.available_in.push("Forge Neo".into());
+            }
+            if let Some(amd) = &settings.amdgpu_dir {
+                if Path::new(amd).join("launch.py").is_file() {
+                    let args = crate::installer::parse_webui_arguments(&settings.amdgpu_arguments)?;
+                    let flag = match model.model_type { "LoRA" => "--lora-dir", "VAE" => "--vae-dir", _ => "--ckpt-dir" };
+                    let custom = args.iter().enumerate().find_map(|(index, arg)| {
+                        if arg == flag { args.get(index + 1).map(PathBuf::from) }
+                        else { arg.strip_prefix(&format!("{flag}=")).map(PathBuf::from) }
+                    });
+                    let selected = match custom {
+                        Some(dir) => dir.canonicalize().ok(),
+                        None => library.as_ref().map(|root| root.join(match model.model_type { "LoRA" => "Lora", "VAE" => "VAE", _ => "Stable-diffusion" })),
+                    };
+                    let own = Path::new(amd).join("models/Stable-diffusion").canonicalize().ok();
+                    if selected.is_some_and(|root| path.starts_with(root)) || (model.model_type == "Checkpoint" && own.is_some_and(|root| path.starts_with(root))) {
+                        model.available_in.push("AMDGPU Forge".into());
+                    }
+                }
+            }
+        }
+        Ok(models)
+    })
         .await.map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub(crate) fn get_model_folders(app: AppHandle) -> Result<Vec<String>, String> {
+    Ok(crate::read_settings(&app)?.model_folders)
+}
+
+fn change_model_folder(app: &AppHandle, directory: &str, add: bool) -> Result<(), String> {
+    let mut settings = crate::read_settings(app)?;
+    if add {
+        let path = paths::subprocess_path(&PathBuf::from(directory));
+        if !path.is_absolute() || !path.is_dir() { return Err("Выберите папку models с подпапками Stable-diffusion, Lora и VAE.".into()); }
+        if !MODEL_FOLDERS.iter().any(|(folder, _)| path.join(folder).is_dir()) {
+            return Err("Выберите общую папку models, внутри которой есть Stable-diffusion, Lora или VAE.".into());
+        }
+        let path = paths::subprocess_path(&path.canonicalize().map_err(|error| error.to_string())?).to_string_lossy().into_owned();
+        if !settings.model_folders.contains(&path) { settings.model_folders.push(path); }
+    } else { settings.model_folders.retain(|path| path != directory); }
+    crate::write_settings(app, &settings)
+}
+
+#[tauri::command]
+pub(crate) fn add_model_folder(app: AppHandle, directory: String, webui: State<'_, crate::installer::WebuiControl>, downloads: State<'_, Arc<crate::civitai::DownloadControl>>) -> Result<(), String> {
+    if webui.is_running() || downloads.is_running() { return Err("Остановите WebUI и загрузки перед изменением папок моделей.".into()); }
+    change_model_folder(&app, &directory, true)
+}
+
+#[tauri::command]
+pub(crate) fn remove_model_folder(app: AppHandle, directory: String, webui: State<'_, crate::installer::WebuiControl>, downloads: State<'_, Arc<crate::civitai::DownloadControl>>) -> Result<(), String> {
+    if webui.is_running() || downloads.is_running() { return Err("Остановите WebUI и загрузки перед изменением папок моделей.".into()); }
+    change_model_folder(&app, &directory, false)
+}
+
+/// Forge Neo accepts repeated directory flags, so sharing requires no copies,
+/// junctions or changes to the package's own models and text encoders.
+pub(crate) fn append_forge_directories(arguments: &mut Vec<String>, roots: &[ModelRoot]) {
+    for root in roots {
+        let flag = match root.model_type { "LoRA" => "--lora-dirs", "VAE" => "--vae-dirs", _ => "--ckpt-dirs" };
+        let path = paths::subprocess_path(&root.path).to_string_lossy().into_owned();
+        if !arguments.windows(2).any(|pair| pair[0] == flag && pair[1] == path) {
+            arguments.extend([flag.to_owned(), path]);
+        }
+    }
 }
 
 #[tauri::command]
@@ -278,6 +364,24 @@ pub(crate) fn delete_installed_model(
 mod tests {
     use super::{checked_model, collect_models, copy_model, discover_package_library, guessed_type, has_models, remove_model, supported_model, ModelRoot};
     use std::{fs, time::{SystemTime, UNIX_EPOCH}};
+
+    #[test]
+    fn shared_forge_directories_are_additive_typed_and_idempotent() {
+        let roots = [
+            ModelRoot { path: std::env::temp_dir().join("library one/checkpoints"), model_type: "Checkpoint", source: "test" },
+            ModelRoot { path: std::env::temp_dir().join("library two/lora"), model_type: "LoRA", source: "test" },
+            ModelRoot { path: std::env::temp_dir().join("library two/vae"), model_type: "VAE", source: "test" },
+        ];
+        let mut args = vec!["--model-ref".into(), "custom root".into()];
+        super::append_forge_directories(&mut args, &roots);
+        let once = args.clone();
+        super::append_forge_directories(&mut args, &roots);
+        assert_eq!(args, once);
+        assert_eq!(&args[..2], &["--model-ref", "custom root"]);
+        for flag in ["--ckpt-dirs", "--lora-dirs", "--vae-dirs"] {
+            assert_eq!(args.iter().filter(|arg| arg.as_str() == flag).count(), 1);
+        }
+    }
 
     #[test]
     fn imports_without_overwriting_and_recognizes_lora_header() {

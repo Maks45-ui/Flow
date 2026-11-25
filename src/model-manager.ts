@@ -95,7 +95,10 @@ export class ModelManager {
       const path = document.createElement("small");
       path.textContent = model.path;
       path.title = model.path;
-      details.append(name, meta, path);
+      const availability = document.createElement("span");
+      availability.className = "model-availability";
+      availability.textContent = model.availableIn.length ? `Доступно после перезапуска: ${model.availableIn.join(", ")}` : "Не подключена к установленным пакетам";
+      details.append(name, meta, path, availability);
       const remove = document.createElement("button");
       remove.className = "secondary-button managed-model-remove";
       remove.type = "button";

@@ -21,6 +21,8 @@ use tauri_plugin_opener::OpenerExt;
 #[serde(rename_all = "camelCase")]
 struct Settings {
     #[serde(default)]
+    model_folders: Vec<String>,
+    #[serde(default)]
     amdgpu_dir: Option<String>,
     #[serde(default)]
     amdgpu_arguments: Vec<String>,
@@ -653,6 +655,10 @@ pub fn run() {
             civitai::search_models,
             civitai::get_starter_model,
             civitai::download_model,
+            civitai::get_download_destination,
+            model_manager::get_model_folders,
+            model_manager::add_model_folder,
+            model_manager::remove_model_folder,
             civitai::pause_download,
             civitai::cancel_download,
             civitai::list_downloads,
